@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 校園迷宮逃脫 (生存戰鬥版)</title>
+    <title>3D 校園迷宮逃脫 (100關無盡版)</title>
     <style>
         body {
             margin: 0;
@@ -34,7 +34,6 @@
             background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
         }
         
-        /* 血條樣式 */
         #health-container {
             width: 300px;
             height: 30px;
@@ -91,7 +90,7 @@
             font-size: 20px; transition: all 0.1s;
         }
         .key-active { background: #f39c12; border-bottom: 0px solid #d35400; transform: translateY(4px); color: white; }
-        .key-space { width: 150px; } /* 空白鍵長一點 */
+        .key-space { width: 150px; } 
 
         #blocker {
             position: absolute; width: 100%; height: 100%;
@@ -135,6 +134,7 @@
         
         .win-text { color: #2ecc71; font-size: 60px; text-shadow: 4px 4px 0 #27ae60; font-family: 'Arial Black', sans-serif; }
         .lose-text { color: #e74c3c; font-size: 60px; text-shadow: 4px 4px 0 #c0392b; font-family: 'Arial Black', sans-serif; }
+        .warning-text { color: #f39c12; font-size: 24px; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -142,9 +142,10 @@
     <div id="ui-layer">
         <div id="hud">
             <div>
-                <div style="font-size: 32px; color: #f1c40f;">Level <span id="level-num">1</span></div>
+                <div style="font-size: 32px; color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
                 <div id="time-display">⏰ 05:00</div>
                 <div id="status-effects"></div>
+                <div id="enemy-warning" class="warning-text">⚠️ 敵人開始主動攻擊！</div>
             </div>
             <div style="text-align: right;">
                 <div id="status">尋找綠色光柱</div>
@@ -173,13 +174,14 @@
     <div id="blocker">
         <div id="instructions">
             <h1 id="menu-title">校園生存逃脫</h1>
-            <p id="menu-subtitle">怪物入侵校園！拿起木棒反擊！</p>
+            <p id="menu-subtitle">100 層無盡挑戰！活下去！</p>
             <hr style="border: 2px dashed #ddd; margin: 20px 0;">
             <p><span class="key">W</span> <span class="key">S</span> 移動 &nbsp; <span class="key">A</span> <span class="key">D</span> 轉向</p>
             <p><span class="key" style="width: 100px;">SPACE</span> 發射魔法彈</p>
             <p>⚡加速 &nbsp; ❄️緩速敵人 &nbsp; ❤️補血</p>
+            <p style="color: #e67e22; font-size: 16px;">(第 3 關後敵人會發動攻擊與重生)</p>
             <br>
-            <button id="start-btn">開始生存</button>
+            <button id="start-btn">開始挑戰</button>
             <p style="font-size: 14px; margin-top: 15px; color: #e74c3c;">⚠️ 請確認輸入法為英文</p>
         </div>
     </div>
@@ -202,37 +204,43 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 關卡設定 ---
-        const LEVELS = [
-            { id: 1, size: 15, time: 300, enemies: 6 },  // 時間改為 300秒 (5分鐘)，敵人加倍
-            { id: 2, size: 17, time: 300, enemies: 10 },
-            { id: 3, size: 19, time: 300, enemies: 14 },
-            { id: 4, size: 21, time: 320, enemies: 18 },
-            { id: 5, size: 23, time: 340, enemies: 24 },
-            { id: 6, size: 25, time: 360, enemies: 30 },
-            { id: 7, size: 27, time: 380, enemies: 36 },
-            { id: 8, size: 29, time: 400, enemies: 40 },
-            { id: 9, size: 31, time: 420, enemies: 50 },
-            { id: 10, size: 33, time: 450, enemies: 60 }
-        ];
+        // --- 全域變數 ---
+        let camera, scene, renderer;
+        let worldGroup = new THREE.Group();
+        
+        let playerStats = { hp: 100, maxHp: 100, speedMulti: 1.0, invincible: 0 };
+        const PLAYER_BASE_SPEED = 250.0;
+        const ROTATE_SPEED = 2.0;
+        let weaponMesh;
+        let projectiles = [];
+        
+        let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
+        
+        let enemies = [];
+        let items = [];
+        let maze = [];
+        let exitPosition = new THREE.Vector3();
+        
+        let prevTime = performance.now();
+        const TILE_SIZE = 25;
+        const WALL_HEIGHT = 20;
+        let gameActive = false;
+        let timeLeft = 0;
+        let timerInterval;
+        let enemySpeedMulti = 1.0;
 
-        let currentLevelIndex = 0;
-        let currentLevelData = LEVELS[0];
+        let currentLevel = 1; // 1 ~ 100
+        let currentLevelData = {};
 
         // --- 音效管理器 ---
         class SoundManager {
-            constructor() {
-                this.ctx = null;
-                this.isPlaying = false;
-            }
+            constructor() { this.ctx = null; }
             init() {
                 if(!this.ctx) {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     this.ctx = new AudioContext();
                 }
                 if(this.ctx.state === 'suspended') this.ctx.resume();
-                this.startBGM();
-                this.isPlaying = true;
             }
             playTone(freq, type, duration, vol = 0.1) {
                 if (!this.ctx) return;
@@ -258,20 +266,8 @@
                 noise.connect(gain); gain.connect(this.ctx.destination);
                 noise.start();
             }
-            startBGM() { /* 簡化 BGM 以便加入音效 */ 
-                if(!this.ctx) return;
-                // 背景低頻嗡嗡聲，營造緊張感
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.value = 50;
-                gain.gain.value = 0.02;
-                const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass'; filter.frequency.value = 200;
-                osc.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
-                osc.start();
-            }
             playShoot() { this.playTone(600, 'square', 0.1, 0.1); setTimeout(()=>this.playTone(300, 'square', 0.1, 0.1), 50); }
+            playEnemyShoot() { this.playTone(200, 'sawtooth', 0.1, 0.1); }
             playHit() { this.playNoise(0.1, 0.2); }
             playPowerUp() { this.playTone(1000, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(1500, 'sine', 0.3, 0.2), 100); }
             playDamage() { this.playTone(100, 'sawtooth', 0.3, 0.3); }
@@ -280,51 +276,20 @@
         }
         const soundManager = new SoundManager();
 
-        // --- 全域變數 ---
-        let camera, scene, renderer;
-        let worldGroup = new THREE.Group();
-        
-        // 玩家狀態
-        let playerStats = { hp: 100, maxHp: 100, speedMulti: 1.0, invincible: 0 };
-        const PLAYER_BASE_SPEED = 250.0;
-        const ROTATE_SPEED = 2.0;
-        let weaponMesh;
-        let projectiles = [];
-        
-        // 輸入
-        let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
-        
-        // 遊戲物件
-        let enemies = [];
-        let items = [];
-        let maze = [];
-        let exitPosition = new THREE.Vector3();
-        
-        // 遊戲循環
-        let prevTime = performance.now();
-        const TILE_SIZE = 25;
-        const WALL_HEIGHT = 20;
-        let gameActive = false;
-        let timeLeft = 0;
-        let timerInterval;
-
-        // 特殊效果
-        let enemySpeedMulti = 1.0;
-
         window.handleAction = function() {
             const btn = document.getElementById('action-btn');
             const resultScreen = document.getElementById('result-screen');
             if (btn.classList.contains('btn-next')) {
-                currentLevelIndex++;
-                if (currentLevelIndex >= LEVELS.length) {
-                    location.reload();
+                currentLevel++;
+                if (currentLevel > 100) {
+                    location.reload(); // 全破
                 } else {
                     resultScreen.style.display = 'none';
-                    startLevel(currentLevelIndex);
+                    startLevel(currentLevel);
                 }
             } else {
                 resultScreen.style.display = 'none';
-                startLevel(currentLevelIndex);
+                startLevel(currentLevel);
             }
         };
 
@@ -339,11 +304,10 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
             camera.rotation.order = 'YXZ'; 
 
-            // 武器 (加在相機上)
             const weaponGeo = new THREE.BoxGeometry(0.5, 0.5, 4);
-            const weaponMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // 木棒
+            const weaponMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
             weaponMesh = new THREE.Mesh(weaponGeo, weaponMat);
-            weaponMesh.position.set(1.5, -1.5, -2); // 右下方
+            weaponMesh.position.set(1.5, -1.5, -2);
             weaponMesh.rotation.x = -0.2;
             weaponMesh.rotation.y = -0.2;
             camera.add(weaponMesh);
@@ -360,14 +324,12 @@
             scene.add(sunLight);
             scene.add(worldGroup);
 
-            // UI Listeners
             document.getElementById('start-btn').addEventListener('click', () => {
                 document.getElementById('blocker').style.display = 'none';
                 soundManager.init();
-                startLevel(0);
+                startLevel(1);
             });
 
-            // Controls
             const onKeyDown = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
                 if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('key-w').classList.add('key-active'); }
@@ -396,11 +358,25 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-        function startLevel(index) {
-            currentLevelIndex = index;
-            currentLevelData = LEVELS[index];
+        // --- 動態關卡計算 ---
+        function getLevelData(level) {
+            // 地圖大小：從 15 開始，每 2 關 +2，上限 61 (太大會跑不動)
+            let size = 15 + Math.floor((level - 1) / 2) * 2;
+            if (size > 61) size = 61;
 
-            // Reset Game
+            // 敵人數量：線性成長，每關 +0.5 隻的感覺
+            let enemies = Math.floor(3 + level * 0.8);
+
+            // 時間：隨地圖變大增加
+            let time = 300 + (level * 10);
+
+            return { id: level, size: size, time: time, enemies: enemies };
+        }
+
+        function startLevel(level) {
+            currentLevel = level;
+            currentLevelData = getLevelData(level);
+
             while(worldGroup.children.length > 0) worldGroup.remove(worldGroup.children[0]);
             enemies = [];
             items = [];
@@ -413,15 +389,26 @@
             updateHPBar();
             updateStatusEffects();
 
-            document.getElementById('level-num').innerText = currentLevelData.id;
+            document.getElementById('level-num').innerText = currentLevel;
+            // 警告顯示
+            const warning = document.getElementById('enemy-warning');
+            if(currentLevel >= 3) {
+                warning.style.display = 'block';
+                warning.innerText = `⚠️ Level ${currentLevel}: 敵人將會攻擊並重生！`;
+            } else {
+                warning.style.display = 'none';
+            }
+
             timeLeft = currentLevelData.time;
             updateTimeDisplay();
 
             createMazeWorld(currentLevelData.size);
-
-            // Spawn Entities
-            spawnEnemies(currentLevelData.enemies);
-            spawnItems(5); // 每關 5 個道具
+            
+            // 初始生成敵人
+            for(let i=0; i<currentLevelData.enemies; i++) {
+                spawnSingleEnemy();
+            }
+            spawnItems(5 + Math.floor(currentLevel/5)); 
 
             moveForward = false; moveBackward = false; rotateLeft = false; rotateRight = false;
             prevTime = performance.now();
@@ -442,39 +429,89 @@
             document.getElementById('time-display').innerText = `⏰ ${m}:${s}`;
         }
 
-        // --- 戰鬥與道具系統 ---
-
         function shoot() {
             if(!gameActive) return;
             soundManager.playShoot();
-
-            // 武器動畫
-            weaponMesh.position.z = -1; // 後座力
+            weaponMesh.position.z = -1; 
             setTimeout(() => weaponMesh.position.z = -2, 100);
 
-            // 產生子彈
             const sphereGeo = new THREE.SphereGeometry(0.5, 8, 8);
             const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
             const bullet = new THREE.Mesh(sphereGeo, sphereMat);
             
-            // 子彈位置與方向
             const pos = new THREE.Vector3();
             const quat = new THREE.Quaternion();
             camera.getWorldPosition(pos);
             camera.getWorldQuaternion(quat);
             
-            // 稍微往下前一點
             const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(quat).normalize();
             bullet.position.copy(pos).add(dir.clone().multiplyScalar(2));
             
-            bullet.userData = { velocity: dir.multiplyScalar(60), life: 2.0 }; // 速度 60
+            bullet.userData = { velocity: dir.multiplyScalar(60), life: 2.0, isEnemy: false };
             worldGroup.add(bullet);
             projectiles.push(bullet);
         }
 
+        function enemyShoot(enemy) {
+            if(!gameActive) return;
+            soundManager.playEnemyShoot();
+            
+            const sphereGeo = new THREE.SphereGeometry(0.8, 8, 8); // 敵人子彈較大
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 紅色
+            const bullet = new THREE.Mesh(sphereGeo, sphereMat);
+            
+            const startPos = enemy.mesh.position.clone();
+            // 瞄準玩家
+            const targetPos = camera.position.clone();
+            targetPos.y -= 2; // 稍微往下瞄準身體
+            
+            const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
+            bullet.position.copy(startPos).add(dir.clone().multiplyScalar(4)); // 從身體前方發射
+            
+            // 敵人子彈速度較慢，方便躲避
+            bullet.userData = { velocity: dir.multiplyScalar(30), life: 3.0, isEnemy: true };
+            worldGroup.add(bullet);
+            projectiles.push(bullet);
+        }
+
+        function spawnSingleEnemy() {
+            const geo = new THREE.BoxGeometry(7, 7, 7);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const eyeGeo = new THREE.BoxGeometry(1.0, 1.0, 0.5);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+            let x, z;
+            let attempts = 0;
+            do {
+                x = Math.floor(Math.random() * currentLevelData.size);
+                z = Math.floor(Math.random() * currentLevelData.size);
+                attempts++;
+            } while (maze[z][x] === 1 && attempts < 100);
+
+            if (maze[z][x] === 0) {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(geo, mat);
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-1.8, 1.0, 3.6);
+                const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(1.8, 1.0, 3.6);
+                group.add(body, eyeL, eyeR);
+                
+                const px = (x - currentLevelData.size/2) * TILE_SIZE;
+                const pz = (z - currentLevelData.size/2) * TILE_SIZE;
+                group.position.set(px, 3.5, pz);
+                group.castShadow = true;
+
+                worldGroup.add(group);
+                enemies.push({ 
+                    mesh: group, 
+                    hp: 3, 
+                    speed: 15 + Math.random() * 10,
+                    lastShot: 0
+                });
+            }
+        }
+
         function spawnItems(count) {
             const geo = new THREE.BoxGeometry(2, 2, 2);
-            // 0: Speed (Yellow), 1: Slow (Blue), 2: Heal (Red)
             const colors = [0xffff00, 0x00ffff, 0xff0000];
             const types = ['speed', 'slow', 'heal'];
 
@@ -490,23 +527,17 @@
                 if (maze[z][x] === 0) {
                     const typeIdx = Math.floor(Math.random() * 3);
                     const mat = new THREE.MeshStandardMaterial({ 
-                        color: colors[typeIdx], 
-                        emissive: colors[typeIdx], 
-                        emissiveIntensity: 0.5 
+                        color: colors[typeIdx], emissive: colors[typeIdx], emissiveIntensity: 0.5 
                     });
                     const item = new THREE.Mesh(geo, mat);
-                    
                     const px = (x - currentLevelData.size/2) * TILE_SIZE;
                     const pz = (z - currentLevelData.size/2) * TILE_SIZE;
                     item.position.set(px, 4, pz);
-                    
                     worldGroup.add(item);
                     items.push({ mesh: item, type: types[typeIdx] });
                 }
             }
         }
-
-        // --- 邏輯更新 ---
 
         function updateProjectiles(dt) {
             for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -516,33 +547,41 @@
                 b.userData.life -= dt;
 
                 let hit = false;
-
-                // 撞牆檢查
                 if (checkCollision(b.position)) hit = true;
 
-                // 撞敵人檢查
                 if (!hit) {
-                    for (let j = enemies.length - 1; j >= 0; j--) {
-                        const enemy = enemies[j];
-                        // 判定範圍加大：因為敵人變大了 (7x7x7)，判定距離設為 6 比較容易打中
-                        if (b.position.distanceTo(enemy.mesh.position) < 6) {
-                            soundManager.playHit();
-                            enemy.hp--;
-                            // 擊退效果
-                            const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(5);
-                            enemy.mesh.position.add(pushDir);
-                            
-                            // 敵人死亡
-                            if (enemy.hp <= 0) {
-                                worldGroup.remove(enemy.mesh);
-                                enemies.splice(j, 1);
-                            } else {
-                                // 受傷閃爍
-                                enemy.mesh.children[0].material.emissive.setHex(0xff0000);
-                                setTimeout(()=>enemy.mesh.children[0].material.emissive.setHex(0x000000), 100);
-                            }
+                    if (b.userData.isEnemy) {
+                        // 敵人子彈打玩家
+                        const playerPos = camera.position;
+                        // 簡單球體判定
+                        if (b.position.distanceTo(playerPos) < 4) {
+                            takeDamage(15);
                             hit = true;
-                            break;
+                        }
+                    } else {
+                        // 玩家子彈打敵人
+                        for (let j = enemies.length - 1; j >= 0; j--) {
+                            const enemy = enemies[j];
+                            if (b.position.distanceTo(enemy.mesh.position) < 6) {
+                                soundManager.playHit();
+                                enemy.hp--;
+                                const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(5);
+                                enemy.mesh.position.add(pushDir);
+                                
+                                if (enemy.hp <= 0) {
+                                    worldGroup.remove(enemy.mesh);
+                                    enemies.splice(j, 1);
+                                    // 重生邏輯
+                                    if(currentLevel >= 3) {
+                                        setTimeout(() => { if(gameActive) spawnSingleEnemy(); }, 3000); // 3秒後重生
+                                    }
+                                } else {
+                                    enemy.mesh.children[0].material.emissive.setHex(0xff0000);
+                                    setTimeout(()=>enemy.mesh.children[0].material.emissive.setHex(0x000000), 100);
+                                }
+                                hit = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -554,79 +593,38 @@
             }
         }
 
-        function updateEnemies(dt) {
+        function updateEnemies(dt, now) {
             const playerPos = camera.position;
             enemies.forEach(e => {
-                // 轉向玩家
                 e.mesh.lookAt(playerPos.x, e.mesh.position.y, playerPos.z);
-                
-                // 簡單追蹤 AI
                 const dist = e.mesh.position.distanceTo(playerPos);
-                if (dist < 100) { // 視野範圍加大
+                
+                // 追蹤
+                if (dist < 120) { 
                     const dir = new THREE.Vector3().subVectors(playerPos, e.mesh.position).normalize();
-                    // 忽略Y軸
                     dir.y = 0;
                     
                     const moveDist = e.speed * enemySpeedMulti * dt;
                     const nextPos = e.mesh.position.clone().add(dir.multiplyScalar(moveDist));
                     
-                    // 敵人碰撞牆壁檢測
-                    if (!checkCollision(nextPos)) {
-                        e.mesh.position.copy(nextPos);
-                    }
+                    if (!checkCollision(nextPos)) e.mesh.position.copy(nextPos);
                     
-                    // 攻擊玩家 (判定範圍加大，因為敵人很大隻)
+                    // 撞擊傷害
                     if (dist < 6) {
                         takeDamage(10);
-                        // 簡單碰撞後退，避免黏住
                         e.mesh.position.sub(dir.multiplyScalar(8)); 
                     }
+
+                    // 射擊邏輯 (Level 3+)
+                    if (currentLevel >= 3 && now - e.lastShot > 2000 && dist < 80) { // 2秒冷卻
+                        // 簡單視線檢查 (不穿牆)
+                        // 這裡省略複雜的光線投射，直接發射
+                        enemyShoot(e);
+                        e.lastShot = now;
+                    }
                 }
-                
-                // 呼吸動畫
-                e.mesh.scale.setScalar(1 + Math.sin(Date.now() * 0.01) * 0.1);
+                e.mesh.scale.setScalar(1 + Math.sin(now * 0.01) * 0.1);
             });
-        }
-        function spawnEnemies(count) {
-            // 敵人變大：從 3x3x3 變成 7x7x7
-            const geo = new THREE.BoxGeometry(7, 7, 7);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x000000 }); // 黑色本體
-            // 眼睛也要調整位置
-            const eyeGeo = new THREE.BoxGeometry(1.0, 1.0, 0.5);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 紅眼
-
-            for(let i=0; i<count; i++) {
-                // 找空地
-                let x, z;
-                let attempts = 0;
-                do {
-                    x = Math.floor(Math.random() * currentLevelData.size);
-                    z = Math.floor(Math.random() * currentLevelData.size);
-                    attempts++;
-                } while (maze[z][x] === 1 && attempts < 100);
-
-                if (maze[z][x] === 0) {
-                    const group = new THREE.Group();
-                    const body = new THREE.Mesh(geo, mat);
-                    // 調整眼睛位置以適應大身體
-                    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-1.8, 1.0, 3.6);
-                    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(1.8, 1.0, 3.6);
-                    group.add(body, eyeL, eyeR);
-                    
-                    const px = (x - currentLevelData.size/2) * TILE_SIZE;
-                    const pz = (z - currentLevelData.size/2) * TILE_SIZE;
-                    // Y軸位置調整，確保站在地板上 (7/2 = 3.5)
-                    group.position.set(px, 3.5, pz);
-                    group.castShadow = true;
-
-                    worldGroup.add(group);
-                    enemies.push({ 
-                        mesh: group, 
-                        hp: 3, 
-                        speed: 15 + Math.random() * 10 
-                    });
-                }
-            }
         }
 
         function updateItems(dt) {
@@ -636,7 +634,12 @@
                 item.mesh.rotation.y += dt;
                 item.mesh.position.y = 4 + Math.sin(Date.now() * 0.005);
 
-                if (item.mesh.position.distanceTo(playerPos) < 4) {
+                // 修正判定：只看 XZ 平面距離，無視高度差
+                const dx = item.mesh.position.x - playerPos.x;
+                const dz = item.mesh.position.z - playerPos.z;
+                const dist2d = Math.sqrt(dx*dx + dz*dz);
+
+                if (dist2d < 6) { // 加大撿取範圍
                     applyEffect(item.type);
                     worldGroup.remove(item.mesh);
                     items.splice(i, 1);
@@ -646,21 +649,13 @@
 
         function takeDamage(amount) {
             if (playerStats.invincible > 0) return;
-            
             playerStats.hp -= amount;
             soundManager.playDamage();
             updateHPBar();
-
-            // 受傷紅屏效果 (簡單模擬)
             scene.background = new THREE.Color(0x550000);
             setTimeout(() => scene.background = new THREE.Color(0x87CEEB), 100);
-
-            // 無敵時間
             playerStats.invincible = 1.0; 
-
-            if (playerStats.hp <= 0) {
-                gameOver(false, "你被怪物擊倒了！");
-            }
+            if (playerStats.hp <= 0) gameOver(false, "你倒下了！");
         }
 
         function applyEffect(type) {
@@ -684,29 +679,24 @@
         }
 
         function showStatusText(text) {
-            // 簡單的浮動文字效果可以加在這裡，目前用 UI 顯示
+            // Placeholder for floating text
         }
 
         function updateStatusEffects() {
             const div = document.getElementById('status-effects');
             div.innerHTML = '';
-            if (playerStats.speedMulti > 1) {
-                div.innerHTML += '<div class="effect-badge" style="background:#f1c40f; color:#000;">⚡加速中</div>';
-            }
-            if (enemySpeedMulti < 1) {
-                div.innerHTML += '<div class="effect-badge" style="background:#3498db; color:#fff;">❄️凍結中</div>';
-            }
+            if (playerStats.speedMulti > 1) div.innerHTML += '<div class="effect-badge" style="background:#f1c40f; color:#000;">⚡加速中</div>';
+            if (enemySpeedMulti < 1) div.innerHTML += '<div class="effect-badge" style="background:#3498db; color:#fff;">❄️凍結中</div>';
         }
 
         function updateHPBar() {
             const bar = document.getElementById('health-bar');
             const txt = document.getElementById('health-text');
-            const pct = (playerStats.hp / playerStats.maxHp) * 100;
+            const pct = Math.max(0, (playerStats.hp / playerStats.maxHp) * 100);
             bar.style.width = pct + '%';
             txt.innerText = `HP: ${playerStats.hp}/${playerStats.maxHp}`;
         }
 
-        // --- 迷宮生成 (沿用) ---
         function createBrickTexture() {
             const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
             const ctx = canvas.getContext('2d');
@@ -798,12 +788,12 @@
 
             if (win) {
                 soundManager.playWin();
-                if (currentLevelIndex + 1 >= LEVELS.length) {
-                    title.innerText = "🏆 生存大師！";
+                if (currentLevel >= 100) {
+                    title.innerText = "🏆 傳奇誕生！";
                     title.className = "win-text";
-                    btn.innerText = "回到主選單";
+                    msg.innerText = "你征服了 100 層迷宮！";
+                    btn.innerText = "重新開始";
                     btn.className = "action-btn btn-next";
-                    btn.onclick = () => location.reload();
                 } else {
                     title.innerText = "🎉 逃脫成功！";
                     title.className = "win-text";
@@ -846,15 +836,12 @@
             prevTime = time;
 
             if (gameActive) {
-                // 無敵時間倒數
                 if (playerStats.invincible > 0) playerStats.invincible -= delta;
 
-                // 物理更新
                 updateProjectiles(delta);
-                updateEnemies(delta);
+                updateEnemies(delta, time); // 傳入 time 用於射擊冷卻
                 updateItems(delta);
 
-                // 玩家移動
                 if (rotateLeft) camera.rotation.y += ROTATE_SPEED * delta;
                 if (rotateRight) camera.rotation.y -= ROTATE_SPEED * delta;
 
