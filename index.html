@@ -2,16 +2,34 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 校園迷宮逃脫 (100關無盡版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D 校園迷宮逃脫 (手機遙控版)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #87CEEB;
+            background-color: #000; /* 黑邊 */
             user-select: none;
+            -webkit-user-select: none; /* iOS Safari */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
         }
+
+        /* 遊戲容器：強制 16:9 */
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 177.78vh; /* 16/9 * 100vh */
+            aspect-ratio: 16/9;
+            background-color: #87CEEB;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
         #ui-layer {
             position: absolute;
             top: 0;
@@ -22,174 +40,227 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            z-index: 5;
         }
+
+        /* 觸控介面層 */
+        #mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .control-zone {
+            pointer-events: auto; /* 允許點擊 */
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 左側 D-Pad */
+        .d-pad-grid {
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px 60px;
+            gap: 5px;
+            margin-bottom: 20px;
+            margin-left: 20px;
+        }
+
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 10px;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            backdrop-filter: blur(4px);
+            transition: background 0.1s;
+            touch-action: none; /* 防止滑動觸發瀏覽器行為 */
+        }
+
+        .touch-btn:active, .touch-btn.pressed {
+            background: rgba(255, 200, 0, 0.6);
+            border-color: rgba(255, 200, 0, 0.8);
+            transform: scale(0.95);
+        }
+
+        /* D-Pad 佈局 */
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 3; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+
+        /* 右側 技能鍵 */
+        .action-zone {
+            margin-bottom: 40px;
+            margin-right: 40px;
+        }
+
+        .btn-skill {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: rgba(255, 50, 50, 0.3);
+            border: 3px solid rgba(255, 100, 100, 0.6);
+            font-size: 16px;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+        }
+        .btn-skill:active, .btn-skill.pressed {
+            background: rgba(255, 50, 50, 0.8);
+            transform: scale(0.9);
+        }
+
+        /* HUD 樣式調整 */
         #hud {
             padding: 20px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             color: #fff;
-            text-shadow: 3px 3px 0px #000;
+            text-shadow: 2px 2px 0px #000;
             font-family: 'Arial Black', sans-serif;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
+            font-size: 18px; /* 手機版字體稍小 */
         }
         
         #health-container {
-            width: 300px;
-            height: 30px;
+            width: 200px;
+            height: 25px;
             background: #333;
-            border: 4px solid #fff;
+            border: 3px solid #fff;
             border-radius: 15px;
             overflow: hidden;
-            margin-top: 10px;
+            margin-top: 5px;
             position: relative;
         }
-        #health-bar {
-            width: 100%;
-            height: 100%;
-            background: #e74c3c;
-            transition: width 0.2s;
-        }
+        #health-bar { width: 100%; height: 100%; background: #e74c3c; transition: width 0.2s; }
         #health-text {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 18px; text-shadow: 1px 1px 0 #000;
+            font-size: 14px; text-shadow: 1px 1px 0 #000;
         }
 
-        #status-effects {
-            margin-top: 10px;
-            display: flex;
-            gap: 10px;
-        }
+        #status-effects { margin-top: 5px; display: flex; gap: 5px; }
         .effect-badge {
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: bold;
-            text-shadow: 1px 1px 0 #000;
-            animation: pulse 1s infinite;
+            padding: 3px 8px; border-radius: 5px; font-size: 14px;
+            font-weight: bold; text-shadow: 1px 1px 0 #000; animation: pulse 1s infinite;
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-        #input-debug {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            pointer-events: none;
-            opacity: 0.9;
-        }
-        .key-row { display: flex; gap: 8px; }
-        .key-icon {
-            width: 45px; height: 45px;
-            background: #fff; border-bottom: 4px solid #ccc; color: #333;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 900; border-radius: 8px; font-family: 'Arial Black', sans-serif;
-            font-size: 20px; transition: all 0.1s;
-        }
-        .key-active { background: #f39c12; border-bottom: 0px solid #d35400; transform: translateY(4px); color: white; }
-        .key-space { width: 150px; } 
+        /* 隱藏鍵盤提示 (手機不需要) */
+        #input-debug { display: none; }
 
         #blocker {
-            position: absolute; width: 100%; height: 100%;
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
             background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
             display: flex; align-items: center; justify-content: center;
-            pointer-events: auto; z-index: 10;
+            pointer-events: auto; z-index: 30;
         }
         #instructions {
-            width: 600px; padding: 40px;
+            width: 80%; max-width: 500px; padding: 20px;
             background: linear-gradient(135deg, #ffffff, #f0f0f0);
             border-radius: 20px; text-align: center; color: #333;
             box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 5px solid #fff;
         }
-        h1 { margin: 0 0 10px 0; color: #c0392b; font-size: 42px; font-family: 'Arial Black', sans-serif; letter-spacing: -1px; }
-        p { font-size: 18px; margin: 8px 0; color: #555; font-weight: bold; }
-        .key { background: #fff; color: #333; padding: 4px 10px; border: 2px solid #ccc; border-radius: 6px; font-weight: 900; font-family: monospace; display: inline-block; box-shadow: 0 2px 0 #bbb; }
+        h1 { margin: 0 0 10px 0; color: #c0392b; font-size: 28px; font-family: 'Arial Black', sans-serif; }
+        p { font-size: 16px; margin: 8px 0; color: #555; font-weight: bold; }
+        .key { background: #fff; color: #333; padding: 2px 6px; border: 2px solid #ccc; border-radius: 6px; font-weight: 900; font-family: monospace; display: inline-block; }
         
         #start-btn {
-            background: #2ecc71; color: white; font-size: 28px; padding: 15px 60px;
-            border: none; border-radius: 15px; cursor: pointer; margin-top: 25px;
-            box-shadow: 0 6px 0 #27ae60; transition: transform 0.1s;
-            font-weight: 900; font-family: 'Arial Black', sans-serif; text-transform: uppercase;
+            background: #2ecc71; color: white; font-size: 24px; padding: 10px 40px;
+            border: none; border-radius: 15px; cursor: pointer; margin-top: 20px;
+            box-shadow: 0 6px 0 #27ae60; font-weight: 900; font-family: 'Arial Black', sans-serif;
         }
         #start-btn:active { transform: translateY(6px); box-shadow: 0 0 0 #27ae60; }
-        #start-btn:hover { background: #27ae60; }
 
         #result-screen {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(44, 10, 10, 0.95); color: white; z-index: 20;
+            background: rgba(44, 10, 10, 0.95); color: white; z-index: 40;
             flex-direction: column; align-items: center; justify-content: center;
             text-align: center; pointer-events: auto;
         }
         button.action-btn {
-            padding: 20px 50px; font-size: 24px; color: white; border: none; border-radius: 15px;
-            cursor: pointer; margin-top: 30px; box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+            padding: 15px 40px; font-size: 20px; color: white; border: none; border-radius: 15px;
+            cursor: pointer; margin-top: 20px; box-shadow: 0 6px 0 rgba(0,0,0,0.2);
             transition: transform 0.1s; font-weight: bold; font-family: 'Arial Black', sans-serif;
         }
         .btn-next { background: #3498db; box-shadow: 0 6px 0 #2980b9; }
         .btn-retry { background: #e74c3c; box-shadow: 0 6px 0 #c0392b; }
         .btn-next:active, .btn-retry:active { transform: translateY(6px); box-shadow: none; }
         
-        .win-text { color: #2ecc71; font-size: 60px; text-shadow: 4px 4px 0 #27ae60; font-family: 'Arial Black', sans-serif; }
-        .lose-text { color: #e74c3c; font-size: 60px; text-shadow: 4px 4px 0 #c0392b; font-family: 'Arial Black', sans-serif; }
-        .warning-text { color: #f39c12; font-size: 24px; margin-top: 10px; display: none; }
+        .win-text { color: #2ecc71; font-size: 40px; text-shadow: 3px 3px 0 #27ae60; font-family: 'Arial Black', sans-serif; }
+        .lose-text { color: #e74c3c; font-size: 40px; text-shadow: 3px 3px 0 #c0392b; font-family: 'Arial Black', sans-serif; }
+        .warning-text { color: #f39c12; font-size: 18px; margin-top: 5px; display: none; font-weight: bold; text-shadow: 1px 1px 0 #000; }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div id="hud">
-            <div>
-                <div style="font-size: 32px; color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
-                <div id="time-display">⏰ 05:00</div>
-                <div id="status-effects"></div>
-                <div id="enemy-warning" class="warning-text">⚠️ 敵人開始主動攻擊！</div>
-            </div>
-            <div style="text-align: right;">
-                <div id="status">尋找綠色光柱</div>
-                <div id="health-container">
-                    <div id="health-bar"></div>
-                    <div id="health-text">HP: 100/100</div>
+    <!-- 遊戲主容器 (16:9) -->
+    <div id="game-container">
+        
+        <!-- HUD -->
+        <div id="ui-layer">
+            <div id="hud">
+                <div>
+                    <div style="font-size: 24px; color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
+                    <div id="time-display">⏰ 05:00</div>
+                    <div id="status-effects"></div>
+                    <div id="enemy-warning" class="warning-text">⚠️ 敵人狂暴化！</div>
+                </div>
+                <div style="text-align: right;">
+                    <div id="status" style="font-size: 16px;">尋找綠色光柱</div>
+                    <div id="health-container">
+                        <div id="health-bar"></div>
+                        <div id="health-text">HP: 100/100</div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div id="input-debug">
-            <div class="key-row">
-                <div id="key-w" class="key-icon">W</div>
+
+        <!-- 手機觸控層 -->
+        <div id="mobile-controls">
+            <div class="control-zone d-pad-grid">
+                <div class="touch-btn btn-up" id="btn-up">▲</div>
+                <div class="touch-btn btn-left" id="btn-left">◀</div>
+                <div class="touch-btn btn-down" id="btn-down">▼</div>
+                <div class="touch-btn btn-right" id="btn-right">▶</div>
             </div>
-            <div class="key-row">
-                <div id="key-a" class="key-icon">A</div>
-                <div id="key-s" class="key-icon">S</div>
-                <div id="key-d" class="key-icon">D</div>
-            </div>
-            <div class="key-row">
-                <div id="key-space" class="key-icon key-space">SPACE (攻擊)</div>
+            <div class="control-zone action-zone">
+                <div class="touch-btn btn-skill" id="btn-skill">💥</div>
             </div>
         </div>
-    </div>
 
-    <!-- Start Screen -->
-    <div id="blocker">
-        <div id="instructions">
-            <h1 id="menu-title">校園生存逃脫</h1>
-            <p id="menu-subtitle">100 層無盡挑戰！活下去！</p>
-            <hr style="border: 2px dashed #ddd; margin: 20px 0;">
-            <p><span class="key">W</span> <span class="key">S</span> 移動 &nbsp; <span class="key">A</span> <span class="key">D</span> 轉向</p>
-            <p><span class="key" style="width: 100px;">SPACE</span> 發射魔法彈</p>
-            <p>⚡加速 &nbsp; ❄️緩速敵人 &nbsp; ❤️補血</p>
-            <p style="color: #e67e22; font-size: 16px;">(第 3 關後敵人會發動攻擊與重生)</p>
-            <br>
-            <button id="start-btn">開始挑戰</button>
-            <p style="font-size: 14px; margin-top: 15px; color: #e74c3c;">⚠️ 請確認輸入法為英文</p>
+        <!-- 開始畫面 -->
+        <div id="blocker">
+            <div id="instructions">
+                <h1 id="menu-title">校園生存逃脫</h1>
+                <p id="menu-subtitle">100 層無盡挑戰！(手機版)</p>
+                <hr style="border: 2px dashed #ddd; margin: 15px 0;">
+                <p>左手控制方向 &nbsp; 右手發射魔法</p>
+                <p>⚡加速 &nbsp; ❄️緩速 &nbsp; ❤️補血</p>
+                <br>
+                <button id="start-btn">開始挑戰</button>
+            </div>
         </div>
-    </div>
 
-    <div id="result-screen">
-        <div id="result-title" class="win-text"></div>
-        <p id="result-message" style="font-size: 24px; margin: 20px; color: #ddd; font-weight: bold;"></p>
-        <button id="action-btn" class="action-btn" onclick="handleAction()">下一關</button>
+        <!-- 結算畫面 -->
+        <div id="result-screen">
+            <div id="result-title" class="win-text"></div>
+            <p id="result-message" style="font-size: 20px; margin: 20px; color: #ddd; font-weight: bold;"></p>
+            <button id="action-btn" class="action-btn" onclick="handleAction()">下一關</button>
+        </div>
+
     </div>
 
     <script type="importmap">
@@ -210,10 +281,11 @@
         
         let playerStats = { hp: 100, maxHp: 100, speedMulti: 1.0, invincible: 0 };
         const PLAYER_BASE_SPEED = 250.0;
-        const ROTATE_SPEED = 2.0;
+        const ROTATE_SPEED = 2.5; // 手機轉向稍微快一點比較好操作
         let weaponMesh;
         let projectiles = [];
         
+        // 控制旗標
         let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
         
         let enemies = [];
@@ -229,7 +301,7 @@
         let timerInterval;
         let enemySpeedMulti = 1.0;
 
-        let currentLevel = 1; // 1 ~ 100
+        let currentLevel = 1;
         let currentLevelData = {};
 
         // --- 音效管理器 ---
@@ -282,7 +354,7 @@
             if (btn.classList.contains('btn-next')) {
                 currentLevel++;
                 if (currentLevel > 100) {
-                    location.reload(); // 全破
+                    location.reload();
                 } else {
                     resultScreen.style.display = 'none';
                     startLevel(currentLevel);
@@ -297,11 +369,17 @@
         animate();
 
         function init() {
+            const container = document.getElementById('game-container');
+            
+            // 渲染器大小設置 (16:9)
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
             scene.fog = new THREE.Fog(0x87CEEB, 20, 250);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera = new THREE.PerspectiveCamera(75, 16 / 9, 1, 1000); // 強制 16:9
             camera.rotation.order = 'YXZ'; 
 
             const weaponGeo = new THREE.BoxGeometry(0.5, 0.5, 4);
@@ -324,52 +402,78 @@
             scene.add(sunLight);
             scene.add(worldGroup);
 
+            // 啟動按鈕
             document.getElementById('start-btn').addEventListener('click', () => {
                 document.getElementById('blocker').style.display = 'none';
                 soundManager.init();
                 startLevel(1);
             });
 
+            // --- 觸控事件綁定 ---
+            const bindTouch = (id, startAction, endAction) => {
+                const btn = document.getElementById(id);
+                
+                // 手機觸控
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // 防止縮放
+                    startAction();
+                    btn.classList.add('pressed');
+                }, { passive: false });
+                
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    endAction();
+                    btn.classList.remove('pressed');
+                }, { passive: false });
+
+                // 電腦滑鼠點擊 (方便測試)
+                btn.addEventListener('mousedown', () => { startAction(); btn.classList.add('pressed'); });
+                btn.addEventListener('mouseup', () => { endAction(); btn.classList.remove('pressed'); });
+                btn.addEventListener('mouseleave', () => { endAction(); btn.classList.remove('pressed'); });
+            };
+
+            bindTouch('btn-up', () => moveForward = true, () => moveForward = false);
+            bindTouch('btn-down', () => moveBackward = true, () => moveBackward = false);
+            bindTouch('btn-left', () => rotateLeft = true, () => rotateLeft = false);
+            bindTouch('btn-right', () => rotateRight = true, () => rotateRight = false);
+            bindTouch('btn-skill', () => shoot(), () => {});
+
+            // --- 鍵盤事件 (保留給電腦版) ---
             const onKeyDown = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
-                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('key-w').classList.add('key-active'); }
-                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=true; document.getElementById('key-s').classList.add('key-active'); }
-                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=true; document.getElementById('key-a').classList.add('key-active'); }
-                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=true; document.getElementById('key-d').classList.add('key-active'); }
-                if(c==='Space'||k===' ') { shoot(); document.getElementById('key-space').classList.add('key-active'); }
+                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('btn-up').classList.add('pressed'); }
+                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=true; document.getElementById('btn-down').classList.add('pressed'); }
+                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=true; document.getElementById('btn-left').classList.add('pressed'); }
+                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=true; document.getElementById('btn-right').classList.add('pressed'); }
+                if(c==='Space'||k===' ') { shoot(); document.getElementById('btn-skill').classList.add('pressed'); }
             };
             const onKeyUp = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
-                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=false; document.getElementById('key-w').classList.remove('key-active'); }
-                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=false; document.getElementById('key-s').classList.remove('key-active'); }
-                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=false; document.getElementById('key-a').classList.remove('key-active'); }
-                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=false; document.getElementById('key-d').classList.remove('key-active'); }
-                if(c==='Space'||k===' ') { document.getElementById('key-space').classList.remove('key-active'); }
+                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=false; document.getElementById('btn-up').classList.remove('pressed'); }
+                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=false; document.getElementById('btn-down').classList.remove('pressed'); }
+                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=false; document.getElementById('btn-left').classList.remove('pressed'); }
+                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=false; document.getElementById('btn-right').classList.remove('pressed'); }
+                if(c==='Space'||k===' ') { document.getElementById('btn-skill').classList.remove('pressed'); }
             };
             window.addEventListener('keydown', onKeyDown);
             window.addEventListener('keyup', onKeyUp);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(width, height);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
+            container.appendChild(renderer.domElement);
+            
             window.addEventListener('resize', onWindowResize);
         }
 
         // --- 動態關卡計算 ---
         function getLevelData(level) {
-            // 地圖大小：從 15 開始，每 2 關 +2，上限 61 (太大會跑不動)
             let size = 15 + Math.floor((level - 1) / 2) * 2;
             if (size > 61) size = 61;
-
-            // 敵人數量：線性成長，每關 +0.5 隻的感覺
             let enemies = Math.floor(3 + level * 0.8);
-
-            // 時間：隨地圖變大增加
             let time = 300 + (level * 10);
-
             return { id: level, size: size, time: time, enemies: enemies };
         }
 
@@ -390,11 +494,10 @@
             updateStatusEffects();
 
             document.getElementById('level-num').innerText = currentLevel;
-            // 警告顯示
             const warning = document.getElementById('enemy-warning');
             if(currentLevel >= 3) {
                 warning.style.display = 'block';
-                warning.innerText = `⚠️ Level ${currentLevel}: 敵人將會攻擊並重生！`;
+                warning.innerText = `⚠️ Level ${currentLevel}: 敵人攻擊與重生！`;
             } else {
                 warning.style.display = 'none';
             }
@@ -404,7 +507,6 @@
 
             createMazeWorld(currentLevelData.size);
             
-            // 初始生成敵人
             for(let i=0; i<currentLevelData.enemies; i++) {
                 spawnSingleEnemy();
             }
@@ -456,19 +558,17 @@
             if(!gameActive) return;
             soundManager.playEnemyShoot();
             
-            const sphereGeo = new THREE.SphereGeometry(0.8, 8, 8); // 敵人子彈較大
-            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 紅色
+            const sphereGeo = new THREE.SphereGeometry(0.8, 8, 8);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const bullet = new THREE.Mesh(sphereGeo, sphereMat);
             
             const startPos = enemy.mesh.position.clone();
-            // 瞄準玩家
             const targetPos = camera.position.clone();
-            targetPos.y -= 2; // 稍微往下瞄準身體
+            targetPos.y -= 2;
             
             const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
-            bullet.position.copy(startPos).add(dir.clone().multiplyScalar(4)); // 從身體前方發射
+            bullet.position.copy(startPos).add(dir.clone().multiplyScalar(4));
             
-            // 敵人子彈速度較慢，方便躲避
             bullet.userData = { velocity: dir.multiplyScalar(30), life: 3.0, isEnemy: true };
             worldGroup.add(bullet);
             projectiles.push(bullet);
@@ -551,15 +651,12 @@
 
                 if (!hit) {
                     if (b.userData.isEnemy) {
-                        // 敵人子彈打玩家
                         const playerPos = camera.position;
-                        // 簡單球體判定
                         if (b.position.distanceTo(playerPos) < 4) {
                             takeDamage(15);
                             hit = true;
                         }
                     } else {
-                        // 玩家子彈打敵人
                         for (let j = enemies.length - 1; j >= 0; j--) {
                             const enemy = enemies[j];
                             if (b.position.distanceTo(enemy.mesh.position) < 6) {
@@ -571,9 +668,8 @@
                                 if (enemy.hp <= 0) {
                                     worldGroup.remove(enemy.mesh);
                                     enemies.splice(j, 1);
-                                    // 重生邏輯
                                     if(currentLevel >= 3) {
-                                        setTimeout(() => { if(gameActive) spawnSingleEnemy(); }, 3000); // 3秒後重生
+                                        setTimeout(() => { if(gameActive) spawnSingleEnemy(); }, 3000);
                                     }
                                 } else {
                                     enemy.mesh.children[0].material.emissive.setHex(0xff0000);
@@ -599,7 +695,6 @@
                 e.mesh.lookAt(playerPos.x, e.mesh.position.y, playerPos.z);
                 const dist = e.mesh.position.distanceTo(playerPos);
                 
-                // 追蹤
                 if (dist < 120) { 
                     const dir = new THREE.Vector3().subVectors(playerPos, e.mesh.position).normalize();
                     dir.y = 0;
@@ -609,16 +704,12 @@
                     
                     if (!checkCollision(nextPos)) e.mesh.position.copy(nextPos);
                     
-                    // 撞擊傷害
                     if (dist < 6) {
                         takeDamage(10);
                         e.mesh.position.sub(dir.multiplyScalar(8)); 
                     }
 
-                    // 射擊邏輯 (Level 3+)
-                    if (currentLevel >= 3 && now - e.lastShot > 2000 && dist < 80) { // 2秒冷卻
-                        // 簡單視線檢查 (不穿牆)
-                        // 這裡省略複雜的光線投射，直接發射
+                    if (currentLevel >= 3 && now - e.lastShot > 2000 && dist < 80) { 
                         enemyShoot(e);
                         e.lastShot = now;
                     }
@@ -634,12 +725,11 @@
                 item.mesh.rotation.y += dt;
                 item.mesh.position.y = 4 + Math.sin(Date.now() * 0.005);
 
-                // 修正判定：只看 XZ 平面距離，無視高度差
                 const dx = item.mesh.position.x - playerPos.x;
                 const dz = item.mesh.position.z - playerPos.z;
                 const dist2d = Math.sqrt(dx*dx + dz*dz);
 
-                if (dist2d < 6) { // 加大撿取範圍
+                if (dist2d < 6) { 
                     applyEffect(item.type);
                     worldGroup.remove(item.mesh);
                     items.splice(i, 1);
@@ -660,26 +750,18 @@
 
         function applyEffect(type) {
             soundManager.playPowerUp();
-            const statusDiv = document.getElementById('status-effects');
             
             if (type === 'heal') {
                 playerStats.hp = Math.min(playerStats.hp + 30, playerStats.maxHp);
                 updateHPBar();
-                showStatusText("❤️ 恢復生命");
             } else if (type === 'speed') {
                 playerStats.speedMulti = 1.8;
-                showStatusText("⚡ 速度提升!");
                 setTimeout(() => { playerStats.speedMulti = 1.0; updateStatusEffects(); }, 8000);
             } else if (type === 'slow') {
                 enemySpeedMulti = 0.3;
-                showStatusText("❄️ 怪物凍結!");
                 setTimeout(() => { enemySpeedMulti = 1.0; updateStatusEffects(); }, 8000);
             }
             updateStatusEffects();
-        }
-
-        function showStatusText(text) {
-            // Placeholder for floating text
         }
 
         function updateStatusEffects() {
@@ -824,9 +906,13 @@
         }
 
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            const container = document.getElementById('game-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(width, height);
         }
 
         function animate() {
@@ -839,7 +925,7 @@
                 if (playerStats.invincible > 0) playerStats.invincible -= delta;
 
                 updateProjectiles(delta);
-                updateEnemies(delta, time); // 傳入 time 用於射擊冷卻
+                updateEnemies(delta, time);
                 updateItems(delta);
 
                 if (rotateLeft) camera.rotation.y += ROTATE_SPEED * delta;
