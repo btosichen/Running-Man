@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 校園迷宮逃脫 (Roblox 風格版)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #87CEEB; /* Roblox 天空藍 */
+            user-select: none;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #hud {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            color: #fff;
+            text-shadow: 3px 3px 0px #000; /* 更粗的陰影，像遊戲UI */
+            font-size: 28px;
+            font-weight: 900;
+            font-family: 'Arial Black', sans-serif;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent);
+        }
+        #level-info { color: #f1c40f; margin-right: 20px; }
+        
+        #input-debug {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+        .key-row { display: flex; gap: 8px; }
+        .key-icon {
+            width: 45px;
+            height: 45px;
+            background: #fff;
+            border-bottom: 4px solid #ccc;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            border-radius: 8px;
+            font-family: 'Arial Black', sans-serif;
+            font-size: 20px;
+            transition: all 0.1s;
+        }
+        .key-active {
+            background: #f39c12;
+            border-bottom: 0px solid #d35400;
+            transform: translateY(4px);
+            color: white;
+        }
+
+        #blocker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        #instructions {
+            width: 550px;
+            padding: 40px;
+            background: linear-gradient(135deg, #ffffff, #f0f0f0);
+            border-radius: 20px;
+            text-align: center;
+            color: #333;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border: 5px solid #fff;
+        }
+        h1 { margin: 0 0 15px 0; color: #e74c3c; font-size: 42px; font-family: 'Arial Black', sans-serif; letter-spacing: -1px; text-transform: uppercase; }
+        p { font-size: 18px; margin: 10px 0; color: #555; font-weight: bold; }
+        .key { background: #fff; color: #333; padding: 5px 12px; border: 2px solid #ccc; border-radius: 6px; font-weight: 900; font-family: monospace; display: inline-block; box-shadow: 0 2px 0 #bbb; }
+        
+        #start-btn {
+            background: #2ecc71;
+            color: white;
+            font-size: 28px;
+            padding: 15px 60px;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 25px;
+            box-shadow: 0 6px 0 #27ae60;
+            transition: transform 0.1s;
+            font-weight: 900;
+            font-family: 'Arial Black', sans-serif;
+            text-transform: uppercase;
+        }
+        #start-btn:active { transform: translateY(6px); box-shadow: 0 0 0 #27ae60; }
+        #start-btn:hover { background: #27ae60; }
+
+        #result-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            z-index: 20;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            pointer-events: auto;
+        }
+        button.action-btn {
+            padding: 20px 50px;
+            font-size: 24px;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 30px;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+            font-weight: bold;
+            font-family: 'Arial Black', sans-serif;
+        }
+        .btn-next { background: #3498db; box-shadow: 0 6px 0 #2980b9; }
+        .btn-retry { background: #e74c3c; box-shadow: 0 6px 0 #c0392b; }
+        .btn-next:active { transform: translateY(6px); box-shadow: none; }
+        .btn-retry:active { transform: translateY(6px); box-shadow: none; }
+        
+        .win-text { color: #2ecc71; font-size: 60px; text-shadow: 4px 4px 0 #27ae60; font-family: 'Arial Black', sans-serif; }
+        .lose-text { color: #e74c3c; font-size: 60px; text-shadow: 4px 4px 0 #c0392b; font-family: 'Arial Black', sans-serif; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="hud">
+            <div>
+                <span id="level-info">Level 1 / 10</span>
+                <span id="time-display">⏰ 02:00</span>
+            </div>
+            <div id="status">尋找綠色光柱</div>
+        </div>
+        <div id="input-debug">
+            <div class="key-row">
+                <div id="key-w" class="key-icon">W</div>
+            </div>
+            <div class="key-row">
+                <div id="key-a" class="key-icon">A</div>
+                <div id="key-s" class="key-icon">S</div>
+                <div id="key-d" class="key-icon">D</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="blocker">
+        <div id="instructions">
+            <h1 id="menu-title">Roblox 風格校園逃脫</h1>
+            <p id="menu-subtitle">尋找綠色光柱，避開迷宮牆壁！</p>
+            <hr style="border: 2px dashed #ddd; margin: 20px 0;">
+            <p><span class="key">W</span> 前進 &nbsp;&nbsp; <span class="key">S</span> 後退</p>
+            <p><span class="key">A</span> 左轉 &nbsp;&nbsp; <span class="key">D</span> 右轉</p>
+            <br>
+            <button id="start-btn">開始第 1 關</button>
+            <p style="font-size: 14px; margin-top: 15px; color: #e74c3c;">⚠️ 請確認輸入法為英文</p>
+        </div>
+    </div>
+
+    <div id="result-screen">
+        <div id="result-title" class="win-text"></div>
+        <p id="result-message" style="font-size: 24px; margin: 20px; color: #ddd; font-weight: bold;"></p>
+        <button id="action-btn" class="action-btn" onclick="handleAction()">下一關</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- 關卡設定 ---
+        const LEVELS = [
+            { id: 1, size: 15, time: 60, desc: "初入校園" },
+            { id: 2, size: 17, time: 90, desc: "紅磚走廊" },
+            { id: 3, size: 19, time: 100, desc: "迷失方向" },
+            { id: 4, size: 21, time: 120, desc: "中庭花園" },
+            { id: 5, size: 23, time: 130, desc: "放學時間" },
+            { id: 6, size: 25, time: 150, desc: "複雜結構" },
+            { id: 7, size: 27, time: 160, desc: "校舍深處" },
+            { id: 8, size: 29, time: 180, desc: "大師級迷宮" },
+            { id: 9, size: 31, time: 200, desc: "極限挑戰" },
+            { id: 10, size: 33, time: 220, desc: "畢業考驗" }
+        ];
+
+        let currentLevelIndex = 0;
+        let currentLevelData = LEVELS[0];
+
+        // --- 音效管理器 (沿用) ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.nextStepTime = 0;
+                this.bgmTimer = null;
+                this.bgmNoteIndex = 0;
+                this.isPlaying = false;
+            }
+            init() {
+                if(!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if(this.ctx.state === 'suspended') this.ctx.resume();
+                this.startBGM();
+                this.isPlaying = true;
+            }
+            stop() {
+                this.isPlaying = false;
+                if (this.bgmTimer) clearTimeout(this.bgmTimer);
+            }
+            startBGM() {
+                if (!this.ctx || !this.isPlaying) return;
+                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0]; // 更有彈性的 Bass
+                const leadLine = [523, 659, 784, 523, 587, 0, 0, 587]; // 歡樂的旋律
+                const baseTempo = 200; 
+                const tempo = Math.max(120, baseTempo - (currentLevelIndex * 8));
+
+                const playStep = () => {
+                    if (!this.isPlaying) return;
+                    const idx = this.bgmNoteIndex % 8;
+                    if (bassLine[idx] > 0) this.playTone(bassLine[idx], 'square', 0.1, 0.1); // Square wave for 8-bit feel
+                    if (leadLine[idx] > 0) {
+                        this.playTone(leadLine[idx], 'sawtooth', 0.1, 0.05);
+                        setTimeout(() => this.playTone(leadLine[idx], 'sine', 0.1, 0.02), 100);
+                    }
+                    if (idx % 2 === 0) this.playNoise(0.05, 0.02); // Snare
+                    if (idx % 4 === 2) this.playNoise(0.02, 0.03); // Hi-hat
+
+                    this.bgmNoteIndex++;
+                    this.bgmTimer = setTimeout(playStep, tempo);
+                };
+                playStep();
+            }
+            playTone(freq, type, duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playNoise(duration, vol) {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * duration;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass'; filter.frequency.value = 1000;
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+                noise.start();
+            }
+            playFootstep() {
+                if (!this.ctx || this.ctx.currentTime < this.nextStepTime) return;
+                this.playTone(200, 'square', 0.05, 0.05); // Roblox 走路聲風格
+                this.nextStepTime = this.ctx.currentTime + 0.35;
+            }
+            playCollision() { this.playTone(100, 'sawtooth', 0.1, 0.1); }
+            playWhoosh() { if(Math.random()>0.8) this.playNoise(0.05, 0.02); }
+            playWin() { this.stop(); [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => this.playTone(f, 'square', 0.2, 0.2), i * 100)); }
+            playLose() { this.stop(); this.playTone(100, 'sawtooth', 0.5, 0.2); setTimeout(() => this.playTone(80, 'sawtooth', 0.5, 0.2), 300); }
+        }
+
+        const soundManager = new SoundManager();
+
+        let camera, scene, renderer;
+        let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
+        let worldGroup = new THREE.Group();
+
+        const PLAYER_SPEED = 250.0;
+        const ROTATE_SPEED = 2.0;
+        let prevTime = performance.now();
+        const TILE_SIZE = 25;
+        const WALL_HEIGHT = 20;
+        
+        let maze = [];
+        let exitPosition = new THREE.Vector3();
+        let gameActive = false;
+        let timeLeft = 0;
+        let timerInterval;
+        let npcs = []; // 學生 NPC
+
+        window.handleAction = function() {
+            const btn = document.getElementById('action-btn');
+            const resultScreen = document.getElementById('result-screen');
+            if (btn.classList.contains('btn-next')) {
+                currentLevelIndex++;
+                if (currentLevelIndex >= LEVELS.length) {
+                    currentLevelIndex = 0;
+                    document.getElementById('menu-title').innerText = "Roblox 風格校園逃脫";
+                    document.getElementById('start-btn').innerText = "開始第 1 關";
+                    document.getElementById('blocker').style.display = 'flex';
+                    resultScreen.style.display = 'none';
+                } else {
+                    resultScreen.style.display = 'none';
+                    startLevel(currentLevelIndex);
+                }
+            } else {
+                resultScreen.style.display = 'none';
+                startLevel(currentLevelIndex);
+            }
+        };
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Roblox Blue Sky
+            scene.fog = new THREE.Fog(0x87CEEB, 20, 300);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.rotation.order = 'YXZ'; 
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
+            sunLight.position.set(100, 200, 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 500;
+            sunLight.shadow.camera.left = -300;
+            sunLight.shadow.camera.right = 300;
+            sunLight.shadow.camera.top = 300;
+            sunLight.shadow.camera.bottom = -300;
+            scene.add(sunLight);
+
+            scene.add(worldGroup);
+
+            const startBtn = document.getElementById('start-btn');
+            startBtn.addEventListener('click', function() {
+                document.getElementById('blocker').style.display = 'none';
+                soundManager.init();
+                startLevel(0);
+            });
+
+            // Input handlers
+            const onKeyDown = (e) => {
+                const k = e.key.toLowerCase(), c = e.code;
+                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('key-w').classList.add('key-active'); }
+                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=true; document.getElementById('key-s').classList.add('key-active'); }
+                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=true; document.getElementById('key-a').classList.add('key-active'); }
+                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=true; document.getElementById('key-d').classList.add('key-active'); }
+            };
+            const onKeyUp = (e) => {
+                const k = e.key.toLowerCase(), c = e.code;
+                if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=false; document.getElementById('key-w').classList.remove('key-active'); }
+                if(c==='ArrowDown'||c==='KeyS'||k==='s') { moveBackward=false; document.getElementById('key-s').classList.remove('key-active'); }
+                if(c==='ArrowLeft'||c==='KeyA'||k==='a') { rotateLeft=false; document.getElementById('key-a').classList.remove('key-active'); }
+                if(c==='ArrowRight'||c==='KeyD'||k==='d') { rotateRight=false; document.getElementById('key-d').classList.remove('key-active'); }
+            };
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+            document.body.appendChild(renderer.domElement);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function startLevel(index) {
+            currentLevelIndex = index;
+            currentLevelData = LEVELS[index];
+
+            while(worldGroup.children.length > 0){ 
+                const obj = worldGroup.children[0];
+                if(obj.geometry) obj.geometry.dispose();
+                if(obj.material) {
+                    if(Array.isArray(obj.material)) obj.material.forEach(m=>m.dispose());
+                    else obj.material.dispose();
+                }
+                worldGroup.remove(obj); 
+            }
+            npcs = [];
+
+            document.getElementById('level-info').innerText = `Level ${currentLevelData.id} / ${LEVELS.length}`;
+            timeLeft = currentLevelData.time;
+            updateTimeDisplay();
+
+            createMazeWorld(currentLevelData.size);
+
+            moveForward = false; moveBackward = false; rotateLeft = false; rotateRight = false;
+            prevTime = performance.now();
+            gameActive = true;
+            soundManager.isPlaying = true;
+            soundManager.startBGM();
+
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if(!gameActive) return;
+                timeLeft--;
+                updateTimeDisplay();
+                if(timeLeft <= 0) gameOver(false);
+            }, 1000);
+        }
+
+        function updateTimeDisplay() {
+            const m = Math.floor(timeLeft/60).toString().padStart(2,'0');
+            const s = (timeLeft%60).toString().padStart(2,'0');
+            document.getElementById('time-display').innerText = `⏰ ${m}:${s}`;
+        }
+
+        // --- Roblox 風格材質生成 ---
+
+        // 1. 紅磚校舍牆壁
+        function createBrickTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            // 底色 (灰泥)
+            ctx.fillStyle = '#a0a0a0';
+            ctx.fillRect(0,0,128,128);
+
+            // 紅磚
+            ctx.fillStyle = '#c0392b'; // 較深的紅磚色
+            const brickH = 16;
+            const brickW = 32;
+            for(let y=0; y<128; y+=brickH+2) {
+                const offset = (y/ (brickH+2)) % 2 === 0 ? 0 : brickW/2;
+                for(let x=-brickW; x<128; x+=brickW+2) {
+                    ctx.fillRect(x+offset, y, brickW, brickH);
+                }
+            }
+
+            // 窗戶 (大方塊窗)
+            ctx.fillStyle = '#87CEEB'; // 玻璃藍
+            ctx.fillRect(32, 32, 64, 64);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(32, 32, 64, 64);
+            // 窗框十字
+            ctx.beginPath();
+            ctx.moveTo(64, 32); ctx.lineTo(64, 96);
+            ctx.moveTo(32, 64); ctx.lineTo(96, 64);
+            ctx.stroke();
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter; // 像素感
+            return tex;
+        }
+
+        // 2. 鋪磚地板 (石磚)
+        function createPaverTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#7f8c8d'; // 灰色
+            ctx.fillRect(0,0,64,64);
+            ctx.strokeStyle = '#636e72';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0,0,64,64); // 方格邊緣
+            // 隨機噪點增加質感
+            for(let i=0;i<50;i++) {
+                ctx.fillStyle = Math.random()>0.5 ? '#95a5a6' : '#636e72';
+                ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        // --- Roblox NPC 生成 ---
+        function createStudentNPC(x, z) {
+            const group = new THREE.Group();
+            
+            // 顏色
+            const shirtColors = [0xe74c3c, 0x3498db, 0xf1c40f, 0x2ecc71, 0x9b59b6];
+            const shirtColor = shirtColors[Math.floor(Math.random() * shirtColors.length)];
+            const skinColor = 0xffe0bd;
+            const pantsColor = 0x34495e;
+
+            // 材質 (BasicMaterial for bright cartoon look)
+            const shirtMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+            const skinMat = new THREE.MeshLambertMaterial({ color: skinColor });
+            const pantsMat = new THREE.MeshLambertMaterial({ color: pantsColor });
+            
+            // 1. 身體 (Body)
+            const bodyGeo = new THREE.BoxGeometry(4, 5, 2);
+            const body = new THREE.Mesh(bodyGeo, shirtMat);
+            body.position.y = 5.5; // 腳長3 + 身體中心2.5
+            
+            // 2. 頭 (Head)
+            const headGeo = new THREE.BoxGeometry(3, 3, 3);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.y = 9.5; // 5.5 + 2.5 + 1.5
+
+            // 3. 手 (Arms)
+            const armGeo = new THREE.BoxGeometry(1.5, 4, 1.5);
+            const leftArm = new THREE.Mesh(armGeo, shirtMat);
+            leftArm.position.set(-2.8, 5.5, 0);
+            const rightArm = new THREE.Mesh(armGeo, shirtMat);
+            rightArm.position.set(2.8, 5.5, 0);
+
+            // 4. 腳 (Legs)
+            const legGeo = new THREE.BoxGeometry(1.8, 3, 1.8);
+            const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+            leftLeg.position.set(-1, 1.5, 0);
+            const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+            rightLeg.position.set(1, 1.5, 0);
+
+            group.add(body, head, leftArm, rightArm, leftLeg, rightLeg);
+            group.position.set(x, 0, z);
+            group.castShadow = true;
+            group.traverse(o => { if(o.isMesh) o.castShadow = true; });
+
+            worldGroup.add(group);
+
+            return {
+                mesh: group,
+                type: 'student',
+                baseY: 0,
+                speed: 10 + Math.random() * 5,
+                rotSpeed: (Math.random() - 0.5) * 2,
+                walkTimer: Math.random() * 100,
+                direction: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
+            };
+        }
+
+        // --- 方塊雲生成 ---
+        function createCloud(x, y, z) {
+            const group = new THREE.Group();
+            const geo = new THREE.BoxGeometry(8, 4, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+            
+            const b1 = new THREE.Mesh(geo, mat);
+            const b2 = new THREE.Mesh(geo, mat);
+            b2.position.set(4, 2, 2);
+            const b3 = new THREE.Mesh(geo, mat);
+            b3.position.set(-4, 1, -2);
+
+            group.add(b1, b2, b3);
+            group.position.set(x, y, z);
+            worldGroup.add(group);
+        }
+
+        function createMazeWorld(mazeSize) {
+            maze = Array(mazeSize).fill().map(() => Array(mazeSize).fill(1));
+            function carve(x, y) {
+                const dirs = [[1,0], [-1,0], [0,1], [0,-1]].sort(() => Math.random()-0.5);
+                dirs.forEach(([dx, dy]) => {
+                    const nx = x + dx*2, ny = y + dy*2;
+                    if (nx > 0 && nx < mazeSize-1 && ny > 0 && ny < mazeSize-1 && maze[ny][nx] === 1) {
+                        maze[y+dy][x+dx] = 0; maze[ny][nx] = 0; carve(nx, ny);
+                    }
+                });
+            }
+            maze[1][1] = 0; carve(1,1);
+
+            // 地板 (鋪磚)
+            const floorSize = mazeSize * TILE_SIZE * 1.5;
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                map: createPaverTexture(),
+                roughness: 0.8
+            });
+            floorMat.map.repeat.set(floorSize/20, floorSize/20); // 重複紋理
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(floorSize, floorSize), floorMat);
+            floor.rotation.x = -Math.PI/2; floor.receiveShadow = true;
+            worldGroup.add(floor);
+
+            // 牆壁 (紅磚)
+            const boxGeo = new THREE.BoxGeometry(TILE_SIZE, WALL_HEIGHT, TILE_SIZE);
+            const brickTex = createBrickTexture();
+            const wallMat = new THREE.MeshStandardMaterial({ map: brickTex });
+
+            // 樹木 (方塊樹)
+            const trunkGeo = new THREE.BoxGeometry(2, 6, 2);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const leavesGeo = new THREE.BoxGeometry(10, 10, 10);
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+
+            for(let y=0; y<mazeSize; y++){
+                for(let x=0; x<mazeSize; x++){
+                    const px = (x - mazeSize/2) * TILE_SIZE;
+                    const pz = (y - mazeSize/2) * TILE_SIZE;
+                    if(maze[y][x] === 1) {
+                        const wall = new THREE.Mesh(boxGeo, wallMat);
+                        wall.position.set(px, WALL_HEIGHT/2, pz);
+                        wall.castShadow = true; wall.receiveShadow = true;
+                        worldGroup.add(wall);
+                    } else {
+                        // 空地：生成樹或學生
+                        const density = Math.max(0.85, 0.96 - (currentLevelIndex * 0.01));
+                        if(Math.random() > density) {
+                            if(Math.random() > 0.4) { // 樹
+                                const grp = new THREE.Group();
+                                const t = new THREE.Mesh(trunkGeo, trunkMat); t.position.y=3;
+                                const l = new THREE.Mesh(leavesGeo, leavesMat); l.position.y=11;
+                                grp.add(t, l);
+                                grp.position.set(px + (Math.random()-0.5)*10, 0, pz + (Math.random()-0.5)*10);
+                                grp.castShadow = true;
+                                grp.traverse(o=> {if(o.isMesh) o.castShadow=true;});
+                                worldGroup.add(grp);
+                            } else { // 學生 NPC
+                                npcs.push(createStudentNPC(px, pz));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 天空雲朵
+            for(let i=0; i<10; i++) {
+                createCloud(
+                    (Math.random()-0.5) * mazeSize * TILE_SIZE * 1.5,
+                    50 + Math.random() * 30,
+                    (Math.random()-0.5) * mazeSize * TILE_SIZE * 1.5
+                );
+            }
+
+            maze[1][1] = 0; 
+            camera.position.set((1 - mazeSize / 2) * TILE_SIZE, 8, (1 - mazeSize / 2) * TILE_SIZE);
+            camera.rotation.y = Math.PI;
+            camera.rotation.x = 0; 
+
+            let ex = mazeSize-2, ey = mazeSize-2;
+            if(maze[ey][ex]===1) { ex=1; ey=mazeSize-2; }
+            exitPosition.set((ex-mazeSize/2)*TILE_SIZE, 0, (ey-mazeSize/2)*TILE_SIZE);
+
+            // 綠色光柱 (Roblox Neon Style)
+            const exitGeo = new THREE.BoxGeometry(4, 100, 4);
+            const exitMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.6 });
+            const exitMark = new THREE.Mesh(exitGeo, exitMat);
+            exitMark.position.copy(exitPosition); exitMark.position.y=50;
+            worldGroup.add(exitMark);
+        }
+
+        function checkWinCondition() {
+            const pos = camera.position;
+            const dist = Math.hypot(pos.x - exitPosition.x, pos.z - exitPosition.z);
+            if(dist < 10) gameOver(true);
+        }
+
+        function gameOver(win) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            const screen = document.getElementById('result-screen');
+            const title = document.getElementById('result-title');
+            const msg = document.getElementById('result-message');
+            const btn = document.getElementById('action-btn');
+            
+            screen.style.display = 'flex';
+
+            if (win) {
+                soundManager.playWin();
+                if (currentLevelIndex + 1 >= LEVELS.length) {
+                    title.innerText = "🏆 畢業快樂！ 🏆";
+                    title.className = "win-text";
+                    msg.innerText = "你已征服所有校園迷宮！";
+                    btn.innerText = "回到主選單";
+                    btn.className = "action-btn btn-next";
+                    btn.onclick = () => location.reload();
+                } else {
+                    title.innerText = "🎉 過關！";
+                    title.className = "win-text";
+                    msg.innerText = `準備進入 Level ${currentLevelData.id + 1}`;
+                    btn.innerText = "下一關 >>";
+                    btn.className = "action-btn btn-next";
+                }
+            } else {
+                soundManager.playLose();
+                title.innerText = "⌛ 時間到！";
+                title.className = "lose-text";
+                msg.innerText = "再試一次吧！";
+                btn.innerText = "重試本關";
+                btn.className = "action-btn btn-retry";
+            }
+        }
+
+        // --- NPC 行為 ---
+        function updateNPCs(dt) {
+            npcs.forEach(npc => {
+                // 隨機移動
+                npc.walkTimer += dt;
+                if (Math.random() < 0.02) {
+                    // 隨機轉向
+                    npc.direction.set(Math.random()-0.5, 0, Math.random()-0.5).normalize();
+                }
+
+                const moveDist = npc.speed * dt;
+                const nextX = npc.mesh.position.x + npc.direction.x * moveDist;
+                const nextZ = npc.mesh.position.z + npc.direction.z * moveDist;
+
+                // 簡單碰撞檢測 (撞牆就反彈)
+                if (!checkCollision(new THREE.Vector3(nextX, 0, nextZ))) {
+                    npc.mesh.position.x = nextX;
+                    npc.mesh.position.z = nextZ;
+                    // 面向移動方向
+                    const targetAngle = Math.atan2(npc.direction.x, npc.direction.z);
+                    npc.mesh.rotation.y = targetAngle;
+                } else {
+                    npc.direction.negate(); // 反彈
+                }
+
+                // 簡單走路動畫 (跳動)
+                npc.mesh.position.y = Math.abs(Math.sin(Date.now() / 150)) * 1; 
+            });
+        }
+
+        function checkCollision(pos) {
+            const pX = pos.x; const pZ = pos.z; const r = 1.5; 
+            const checks = [{x:pX+r, z:pZ}, {x:pX-r, z:pZ}, {x:pX, z:pZ+r}, {x:pX, z:pZ-r}];
+            const ms = currentLevelData.size;
+            for (let p of checks) {
+                const gx = Math.round((p.x / TILE_SIZE) + (ms / 2));
+                const gy = Math.round((p.z / TILE_SIZE) + (ms / 2));
+                if (gx >= 0 && gx < ms && gy >= 0 && gy < ms) {
+                    if (maze[gy][gx] === 1) return true;
+                }
+            }
+            return false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = Math.min((time - prevTime) / 1000, 0.1); 
+            prevTime = time;
+
+            if (gameActive) {
+                updateNPCs(delta);
+
+                if (rotateLeft) { camera.rotation.y += ROTATE_SPEED * delta; soundManager.playWhoosh(); }
+                if (rotateRight) { camera.rotation.y -= ROTATE_SPEED * delta; soundManager.playWhoosh(); }
+
+                let moveSpeed = 0;
+                if (moveForward) moveSpeed = PLAYER_SPEED * delta;
+                if (moveBackward) moveSpeed = -PLAYER_SPEED * delta;
+
+                if (moveSpeed !== 0) {
+                    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                    forward.y = 0; forward.normalize();
+                    const currentPos = camera.position.clone();
+                    const nextX = currentPos.x + forward.x * moveSpeed;
+                    const nextZ = currentPos.z + forward.z * moveSpeed;
+
+                    let hitWall = false;
+                    if (!checkCollision(new THREE.Vector3(nextX, currentPos.y, currentPos.z))) camera.position.x = nextX; else hitWall = true;
+                    if (!checkCollision(new THREE.Vector3(camera.position.x, currentPos.y, nextZ))) camera.position.z = nextZ; else hitWall = true;
+
+                    if (hitWall) soundManager.playCollision(); else soundManager.playFootstep();
+                }
+                checkWinCondition();
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
