@@ -2,16 +2,19 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (手機遙控版)</title>
+    <!-- 關鍵：禁止縮放，確保手機版操作穩定 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D 校園迷宮逃脫 (手機遙控修復版)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #000; /* 黑邊 */
+            background-color: #000;
             user-select: none;
-            -webkit-user-select: none; /* iOS Safari */
+            -webkit-user-select: none;
+            /* 禁止觸控預設行為 (如長按選取、下拉重整) */
+            touch-action: none; 
             display: flex;
             justify-content: center;
             align-items: center;
@@ -23,7 +26,9 @@
         #game-container {
             position: relative;
             width: 100%;
-            max-width: 177.78vh; /* 16/9 * 100vh */
+            /* 確保不超過螢幕邊界，並保持 16:9 */
+            max-width: 100vw; 
+            max-height: 100vh;
             aspect-ratio: 16/9;
             background-color: #87CEEB;
             overflow: hidden;
@@ -43,7 +48,7 @@
             z-index: 5;
         }
 
-        /* 觸控介面層 */
+        /* --- 觸控介面層 (大幅優化) --- */
         #mobile-controls {
             position: absolute;
             bottom: 0;
@@ -52,51 +57,52 @@
             height: 100%;
             pointer-events: none;
             z-index: 20;
+            /* 使用 Flexbox 讓左右控制區分開 */
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            padding: 20px;
+            /* 內縮距離，避免太貼邊 */
+            padding: 4vmin; 
             box-sizing: border-box;
         }
 
         .control-zone {
-            pointer-events: auto; /* 允許點擊 */
-            display: flex;
-            gap: 10px;
+            pointer-events: auto;
+            position: relative;
         }
 
-        /* 左側 D-Pad */
+        /* 左側 D-Pad 網格 */
         .d-pad-grid {
             display: grid;
-            grid-template-columns: 60px 60px 60px;
-            grid-template-rows: 60px 60px 60px;
-            gap: 5px;
-            margin-bottom: 20px;
-            margin-left: 20px;
+            /* 使用 vmin 單位，隨螢幕短邊縮放 */
+            grid-template-columns: 12vmin 12vmin 12vmin;
+            grid-template-rows: 12vmin 12vmin 12vmin;
+            gap: 1vmin;
         }
 
         .touch-btn {
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 15px;
             color: white;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 24px;
+            font-size: 6vmin; /* 字體隨按鈕大小縮放 */
             font-weight: bold;
             backdrop-filter: blur(4px);
-            transition: background 0.1s;
-            touch-action: none; /* 防止滑動觸發瀏覽器行為 */
+            transition: background 0.1s, transform 0.1s;
+            /* 關鍵：確保觸控不延遲 */
+            touch-action: manipulation; 
         }
 
         .touch-btn:active, .touch-btn.pressed {
-            background: rgba(255, 200, 0, 0.6);
-            border-color: rgba(255, 200, 0, 0.8);
-            transform: scale(0.95);
+            background: rgba(255, 200, 0, 0.7);
+            border-color: rgba(255, 200, 0, 1);
+            transform: scale(0.9);
         }
 
-        /* D-Pad 佈局 */
+        /* D-Pad 佈局微調 */
         .btn-up { grid-column: 2; grid-row: 1; }
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-down { grid-column: 2; grid-row: 3; }
@@ -104,85 +110,86 @@
 
         /* 右側 技能鍵 */
         .action-zone {
-            margin-bottom: 40px;
-            margin-right: 40px;
+            /* 稍微往上抬一點，符合大拇指位置 */
+            margin-bottom: 4vmin;
+            margin-right: 2vmin;
         }
 
         .btn-skill {
-            width: 90px;
-            height: 90px;
+            width: 18vmin; /* 大小適中的圓形按鈕 */
+            height: 18vmin;
             border-radius: 50%;
-            background: rgba(255, 50, 50, 0.3);
-            border: 3px solid rgba(255, 100, 100, 0.6);
-            font-size: 16px;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+            background: rgba(255, 50, 50, 0.4);
+            border: 3px solid rgba(255, 100, 100, 0.7);
+            font-size: 8vmin;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
         }
         .btn-skill:active, .btn-skill.pressed {
-            background: rgba(255, 50, 50, 0.8);
+            background: rgba(255, 50, 50, 0.9);
             transform: scale(0.9);
         }
 
-        /* HUD 樣式調整 */
+        /* HUD 字體調整 */
         #hud {
-            padding: 20px;
+            padding: 2vmin;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             color: #fff;
             text-shadow: 2px 2px 0px #000;
             font-family: 'Arial Black', sans-serif;
-            font-size: 18px; /* 手機版字體稍小 */
+            font-size: 3.5vmin; /* 字體隨螢幕縮放 */
         }
         
         #health-container {
-            width: 200px;
-            height: 25px;
+            width: 30vmin;
+            height: 4vmin;
             background: #333;
-            border: 3px solid #fff;
-            border-radius: 15px;
+            border: 0.5vmin solid #fff;
+            border-radius: 2vmin;
             overflow: hidden;
-            margin-top: 5px;
+            margin-top: 1vmin;
             position: relative;
         }
         #health-bar { width: 100%; height: 100%; background: #e74c3c; transition: width 0.2s; }
         #health-text {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 14px; text-shadow: 1px 1px 0 #000;
+            font-size: 2.5vmin; text-shadow: 1px 1px 0 #000;
         }
 
-        #status-effects { margin-top: 5px; display: flex; gap: 5px; }
+        #status-effects { margin-top: 1vmin; display: flex; gap: 1vmin; }
         .effect-badge {
-            padding: 3px 8px; border-radius: 5px; font-size: 14px;
+            padding: 0.5vmin 1.5vmin; border-radius: 1vmin; font-size: 2.5vmin;
             font-weight: bold; text-shadow: 1px 1px 0 #000; animation: pulse 1s infinite;
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-        /* 隱藏鍵盤提示 (手機不需要) */
         #input-debug { display: none; }
 
         #blocker {
             position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-            background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
+            background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
             display: flex; align-items: center; justify-content: center;
             pointer-events: auto; z-index: 30;
         }
         #instructions {
-            width: 80%; max-width: 500px; padding: 20px;
+            width: 85%; max-width: 600px; padding: 5vmin;
             background: linear-gradient(135deg, #ffffff, #f0f0f0);
-            border-radius: 20px; text-align: center; color: #333;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 5px solid #fff;
+            border-radius: 3vmin; text-align: center; color: #333;
+            box-shadow: 0 4vmin 10vmin rgba(0,0,0,0.5); border: 1vmin solid #fff;
         }
-        h1 { margin: 0 0 10px 0; color: #c0392b; font-size: 28px; font-family: 'Arial Black', sans-serif; }
-        p { font-size: 16px; margin: 8px 0; color: #555; font-weight: bold; }
-        .key { background: #fff; color: #333; padding: 2px 6px; border: 2px solid #ccc; border-radius: 6px; font-weight: 900; font-family: monospace; display: inline-block; }
+        h1 { margin: 0 0 2vmin 0; color: #c0392b; font-size: 6vmin; font-family: 'Arial Black', sans-serif; }
+        p { font-size: 3.5vmin; margin: 1.5vmin 0; color: #555; font-weight: bold; }
         
         #start-btn {
-            background: #2ecc71; color: white; font-size: 24px; padding: 10px 40px;
-            border: none; border-radius: 15px; cursor: pointer; margin-top: 20px;
-            box-shadow: 0 6px 0 #27ae60; font-weight: 900; font-family: 'Arial Black', sans-serif;
+            background: #2ecc71; color: white; font-size: 5vmin; padding: 2vmin 8vmin;
+            border: none; border-radius: 2vmin; cursor: pointer; margin-top: 4vmin;
+            box-shadow: 0 1vmin 0 #27ae60; font-weight: 900; font-family: 'Arial Black', sans-serif;
+            /* 增加按鈕感應區域 */
+            touch-action: manipulation;
         }
-        #start-btn:active { transform: translateY(6px); box-shadow: 0 0 0 #27ae60; }
+        #start-btn:active { transform: translateY(1vmin); box-shadow: 0 0 0 #27ae60; }
 
         #result-screen {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -191,17 +198,17 @@
             text-align: center; pointer-events: auto;
         }
         button.action-btn {
-            padding: 15px 40px; font-size: 20px; color: white; border: none; border-radius: 15px;
-            cursor: pointer; margin-top: 20px; box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+            padding: 2vmin 6vmin; font-size: 4vmin; color: white; border: none; border-radius: 2vmin;
+            cursor: pointer; margin-top: 4vmin; box-shadow: 0 1vmin 0 rgba(0,0,0,0.2);
             transition: transform 0.1s; font-weight: bold; font-family: 'Arial Black', sans-serif;
         }
-        .btn-next { background: #3498db; box-shadow: 0 6px 0 #2980b9; }
-        .btn-retry { background: #e74c3c; box-shadow: 0 6px 0 #c0392b; }
-        .btn-next:active, .btn-retry:active { transform: translateY(6px); box-shadow: none; }
+        .btn-next { background: #3498db; box-shadow: 0 1vmin 0 #2980b9; }
+        .btn-retry { background: #e74c3c; box-shadow: 0 1vmin 0 #c0392b; }
+        .btn-next:active, .btn-retry:active { transform: translateY(1vmin); box-shadow: none; }
         
-        .win-text { color: #2ecc71; font-size: 40px; text-shadow: 3px 3px 0 #27ae60; font-family: 'Arial Black', sans-serif; }
-        .lose-text { color: #e74c3c; font-size: 40px; text-shadow: 3px 3px 0 #c0392b; font-family: 'Arial Black', sans-serif; }
-        .warning-text { color: #f39c12; font-size: 18px; margin-top: 5px; display: none; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+        .win-text { color: #2ecc71; font-size: 8vmin; text-shadow: 0.5vmin 0.5vmin 0 #27ae60; font-family: 'Arial Black', sans-serif; }
+        .lose-text { color: #e74c3c; font-size: 8vmin; text-shadow: 0.5vmin 0.5vmin 0 #c0392b; font-family: 'Arial Black', sans-serif; }
+        .warning-text { color: #f39c12; font-size: 3vmin; margin-top: 1vmin; display: none; font-weight: bold; text-shadow: 1px 1px 0 #000; }
     </style>
 </head>
 <body>
@@ -213,13 +220,13 @@
         <div id="ui-layer">
             <div id="hud">
                 <div>
-                    <div style="font-size: 24px; color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
+                    <div style="color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
                     <div id="time-display">⏰ 05:00</div>
                     <div id="status-effects"></div>
                     <div id="enemy-warning" class="warning-text">⚠️ 敵人狂暴化！</div>
                 </div>
                 <div style="text-align: right;">
-                    <div id="status" style="font-size: 16px;">尋找綠色光柱</div>
+                    <div id="status">尋找綠色光柱</div>
                     <div id="health-container">
                         <div id="health-bar"></div>
                         <div id="health-text">HP: 100/100</div>
@@ -246,18 +253,19 @@
             <div id="instructions">
                 <h1 id="menu-title">校園生存逃脫</h1>
                 <p id="menu-subtitle">100 層無盡挑戰！(手機版)</p>
-                <hr style="border: 2px dashed #ddd; margin: 15px 0;">
-                <p>左手控制方向 &nbsp; 右手發射魔法</p>
+                <hr style="border: 2px dashed #ddd; margin: 2vmin 0;">
+                <p>左手方向 &nbsp; 右手魔法</p>
                 <p>⚡加速 &nbsp; ❄️緩速 &nbsp; ❤️補血</p>
                 <br>
-                <button id="start-btn">開始挑戰</button>
+                <!-- 同時監聽 touchstart 和 click -->
+                <button id="start-btn">點擊開始</button>
             </div>
         </div>
 
         <!-- 結算畫面 -->
         <div id="result-screen">
             <div id="result-title" class="win-text"></div>
-            <p id="result-message" style="font-size: 20px; margin: 20px; color: #ddd; font-weight: bold;"></p>
+            <p id="result-message" style="font-size: 4vmin; margin: 4vmin; color: #ddd; font-weight: bold;"></p>
             <button id="action-btn" class="action-btn" onclick="handleAction()">下一關</button>
         </div>
 
@@ -281,7 +289,7 @@
         
         let playerStats = { hp: 100, maxHp: 100, speedMulti: 1.0, invincible: 0 };
         const PLAYER_BASE_SPEED = 250.0;
-        const ROTATE_SPEED = 2.5; // 手機轉向稍微快一點比較好操作
+        const ROTATE_SPEED = 2.5;
         let weaponMesh;
         let projectiles = [];
         
@@ -304,7 +312,7 @@
         let currentLevel = 1;
         let currentLevelData = {};
 
-        // --- 音效管理器 (新增 BGM) ---
+        // --- 音效管理器 ---
         class SoundManager {
             constructor() { 
                 this.ctx = null; 
@@ -313,13 +321,17 @@
                 this.isPlaying = false;
             }
             init() {
-                if(!this.ctx) {
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    this.ctx = new AudioContext();
+                try {
+                    if(!this.ctx) {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        this.ctx = new AudioContext();
+                    }
+                    if(this.ctx.state === 'suspended') this.ctx.resume();
+                    this.isPlaying = true;
+                    this.startBGM();
+                } catch (e) {
+                    console.log("Audio init failed (safely ignored):", e);
                 }
-                if(this.ctx.state === 'suspended') this.ctx.resume();
-                this.isPlaying = true;
-                this.startBGM();
             }
             stop() {
                 this.isPlaying = false;
@@ -327,57 +339,46 @@
             }
             playTone(freq, type, duration, vol = 0.1) {
                 if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                osc.connect(gain); gain.connect(this.ctx.destination);
-                osc.start(); osc.stop(this.ctx.currentTime + duration);
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
             }
             playNoise(duration, vol) {
                 if (!this.ctx) return;
-                const bufferSize = this.ctx.sampleRate * duration;
-                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-                const data = buffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                const noise = this.ctx.createBufferSource();
-                noise.buffer = buffer;
-                const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                noise.connect(gain); gain.connect(this.ctx.destination);
-                noise.start();
+                try {
+                    const bufferSize = this.ctx.sampleRate * duration;
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const gain = this.ctx.createGain();
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    noise.connect(gain); gain.connect(this.ctx.destination);
+                    noise.start();
+                } catch(e) {}
             }
             
             startBGM() {
                 if (!this.ctx) return;
-                
-                // 停止舊的計時器
                 if (this.bgmTimer) clearTimeout(this.bgmTimer);
-                
-                // 簡單的跑酷節奏 Loop
-                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0]; // A2 bass
-                const leadLine = [440, 523, 587, 659, 523, 587, 440, 392]; // Melody
+                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0];
+                const leadLine = [440, 523, 587, 659, 523, 587, 440, 392];
                 const tempo = 220;
-
                 const playStep = () => {
                     if (!this.isPlaying) return;
-
                     const idx = this.bgmNoteIndex % 8;
-                    
-                    // Bass
                     if (bassLine[idx] > 0) this.playTone(bassLine[idx], 'sawtooth', 0.1, 0.1);
-                    
-                    // Lead (偶爾播放，增加變化)
-                    if (Math.random() > 0.2) {
-                        this.playTone(leadLine[idx], 'square', 0.1, 0.03);
-                    }
-
-                    // Rhythm (Hi-hat & Kick simulation)
-                    if (idx % 4 === 0) this.playNoise(0.05, 0.05); // Beat
-                    if (idx % 2 === 0) this.playNoise(0.01, 0.02); // Hi-hat
-
+                    if (Math.random() > 0.2) this.playTone(leadLine[idx], 'square', 0.1, 0.03);
+                    if (idx % 4 === 0) this.playNoise(0.05, 0.05);
+                    if (idx % 2 === 0) this.playNoise(0.01, 0.02);
                     this.bgmNoteIndex++;
                     this.bgmTimer = setTimeout(playStep, tempo);
                 };
@@ -389,14 +390,8 @@
             playHit() { this.playNoise(0.1, 0.2); }
             playPowerUp() { this.playTone(1000, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(1500, 'sine', 0.3, 0.2), 100); }
             playDamage() { this.playTone(100, 'sawtooth', 0.3, 0.3); }
-            playWin() { 
-                this.stop();
-                [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); 
-            }
-            playLose() { 
-                this.stop();
-                this.playTone(200,'sawtooth',0.5,0.3); setTimeout(()=>this.playTone(100,'sawtooth',1.0,0.3),400); 
-            }
+            playWin() { this.stop(); [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); }
+            playLose() { this.stop(); this.playTone(200,'sawtooth',0.5,0.3); setTimeout(()=>this.playTone(100,'sawtooth',1.0,0.3),400); }
         }
         const soundManager = new SoundManager();
 
@@ -422,8 +417,6 @@
 
         function init() {
             const container = document.getElementById('game-container');
-            
-            // 渲染器大小設置 (16:9)
             const width = container.clientWidth;
             const height = container.clientHeight;
 
@@ -431,7 +424,7 @@
             scene.background = new THREE.Color(0x87CEEB);
             scene.fog = new THREE.Fog(0x87CEEB, 20, 250);
 
-            camera = new THREE.PerspectiveCamera(75, 16 / 9, 1, 1000); // 強制 16:9
+            camera = new THREE.PerspectiveCamera(75, 16 / 9, 1, 1000);
             camera.rotation.order = 'YXZ'; 
 
             const weaponGeo = new THREE.BoxGeometry(0.5, 0.5, 4);
@@ -454,31 +447,33 @@
             scene.add(sunLight);
             scene.add(worldGroup);
 
-            // 啟動按鈕
-            document.getElementById('start-btn').addEventListener('click', () => {
+            // 啟動按鈕邏輯 (修復手機無反應)
+            const startBtn = document.getElementById('start-btn');
+            const startGame = (e) => {
+                e.preventDefault(); // 防止觸發兩次
+                e.stopPropagation();
                 document.getElementById('blocker').style.display = 'none';
                 soundManager.init();
                 startLevel(1);
-            });
+            };
+            
+            startBtn.addEventListener('touchstart', startGame, { passive: false });
+            startBtn.addEventListener('click', startGame); // 備用，給電腦版
 
             // --- 觸控事件綁定 ---
             const bindTouch = (id, startAction, endAction) => {
                 const btn = document.getElementById(id);
-                
-                // 手機觸控
                 btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault(); // 防止縮放
+                    e.preventDefault(); 
                     startAction();
                     btn.classList.add('pressed');
                 }, { passive: false });
-                
                 btn.addEventListener('touchend', (e) => {
                     e.preventDefault();
                     endAction();
                     btn.classList.remove('pressed');
                 }, { passive: false });
-
-                // 電腦滑鼠點擊 (方便測試)
+                // PC 測試用
                 btn.addEventListener('mousedown', () => { startAction(); btn.classList.add('pressed'); });
                 btn.addEventListener('mouseup', () => { endAction(); btn.classList.remove('pressed'); });
                 btn.addEventListener('mouseleave', () => { endAction(); btn.classList.remove('pressed'); });
@@ -490,7 +485,7 @@
             bindTouch('btn-right', () => rotateRight = true, () => rotateRight = false);
             bindTouch('btn-skill', () => shoot(), () => {});
 
-            // --- 鍵盤事件 (保留給電腦版) ---
+            // --- 鍵盤事件 ---
             const onKeyDown = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
                 if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('btn-up').classList.add('pressed'); }
@@ -520,7 +515,7 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-        // --- 動態關卡計算 ---
+        // --- 遊戲邏輯 ---
         function getLevelData(level) {
             let size = 15 + Math.floor((level - 1) / 2) * 2;
             if (size > 61) size = 61;
@@ -568,7 +563,6 @@
             prevTime = performance.now();
             gameActive = true;
             
-            // 重啟音樂
             soundManager.isPlaying = true;
             soundManager.startBGM();
 
