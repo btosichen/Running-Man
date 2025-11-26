@@ -304,15 +304,26 @@
         let currentLevel = 1;
         let currentLevelData = {};
 
-        // --- 音效管理器 ---
+        // --- 音效管理器 (新增 BGM) ---
         class SoundManager {
-            constructor() { this.ctx = null; }
+            constructor() { 
+                this.ctx = null; 
+                this.bgmTimer = null;
+                this.bgmNoteIndex = 0;
+                this.isPlaying = false;
+            }
             init() {
                 if(!this.ctx) {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     this.ctx = new AudioContext();
                 }
                 if(this.ctx.state === 'suspended') this.ctx.resume();
+                this.isPlaying = true;
+                this.startBGM();
+            }
+            stop() {
+                this.isPlaying = false;
+                if(this.bgmTimer) clearTimeout(this.bgmTimer);
             }
             playTone(freq, type, duration, vol = 0.1) {
                 if (!this.ctx) return;
@@ -338,13 +349,54 @@
                 noise.connect(gain); gain.connect(this.ctx.destination);
                 noise.start();
             }
+            
+            startBGM() {
+                if (!this.ctx) return;
+                
+                // 停止舊的計時器
+                if (this.bgmTimer) clearTimeout(this.bgmTimer);
+                
+                // 簡單的跑酷節奏 Loop
+                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0]; // A2 bass
+                const leadLine = [440, 523, 587, 659, 523, 587, 440, 392]; // Melody
+                const tempo = 220;
+
+                const playStep = () => {
+                    if (!this.isPlaying) return;
+
+                    const idx = this.bgmNoteIndex % 8;
+                    
+                    // Bass
+                    if (bassLine[idx] > 0) this.playTone(bassLine[idx], 'sawtooth', 0.1, 0.1);
+                    
+                    // Lead (偶爾播放，增加變化)
+                    if (Math.random() > 0.2) {
+                        this.playTone(leadLine[idx], 'square', 0.1, 0.03);
+                    }
+
+                    // Rhythm (Hi-hat & Kick simulation)
+                    if (idx % 4 === 0) this.playNoise(0.05, 0.05); // Beat
+                    if (idx % 2 === 0) this.playNoise(0.01, 0.02); // Hi-hat
+
+                    this.bgmNoteIndex++;
+                    this.bgmTimer = setTimeout(playStep, tempo);
+                };
+                playStep();
+            }
+
             playShoot() { this.playTone(600, 'square', 0.1, 0.1); setTimeout(()=>this.playTone(300, 'square', 0.1, 0.1), 50); }
             playEnemyShoot() { this.playTone(200, 'sawtooth', 0.1, 0.1); }
             playHit() { this.playNoise(0.1, 0.2); }
             playPowerUp() { this.playTone(1000, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(1500, 'sine', 0.3, 0.2), 100); }
             playDamage() { this.playTone(100, 'sawtooth', 0.3, 0.3); }
-            playWin() { [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); }
-            playLose() { this.playTone(200,'sawtooth',0.5,0.3); setTimeout(()=>this.playTone(100,'sawtooth',1.0,0.3),400); }
+            playWin() { 
+                this.stop();
+                [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); 
+            }
+            playLose() { 
+                this.stop();
+                this.playTone(200,'sawtooth',0.5,0.3); setTimeout(()=>this.playTone(100,'sawtooth',1.0,0.3),400); 
+            }
         }
         const soundManager = new SoundManager();
 
@@ -515,6 +567,10 @@
             moveForward = false; moveBackward = false; rotateLeft = false; rotateRight = false;
             prevTime = performance.now();
             gameActive = true;
+            
+            // 重啟音樂
+            soundManager.isPlaying = true;
+            soundManager.startBGM();
 
             if(timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
