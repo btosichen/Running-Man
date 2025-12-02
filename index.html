@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (手機完美修復版)</title>
+    <title>3D 校園迷宮逃脫 (菁英守衛版)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             font-family: 'Arial Black', 'Segoe UI', Tahoma, sans-serif;
-            background-color: #111; /* 背景黑邊 */
+            background-color: #111;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* 禁止全域觸控滾動 */
+            touch-action: none;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -20,11 +20,10 @@
             width: 100vw;
         }
 
-        /* 遊戲主容器：嚴格維持 16:9 */
         #game-container {
             position: relative;
             width: 100%;
-            max-width: 177.78vh; /* 16/9 * 100vh */
+            max-width: 177.78vh;
             aspect-ratio: 16/9;
             background-color: #87CEEB;
             overflow: hidden;
@@ -39,7 +38,6 @@
             z-index: 5;
         }
 
-        /* --- 觸控介面層 (使用百分比佈局) --- */
         #mobile-controls {
             position: absolute;
             bottom: 0; left: 0; width: 100%; height: 100%;
@@ -50,29 +48,27 @@
         .control-zone {
             pointer-events: auto;
             position: absolute;
-            bottom: 5%; /* 離底部距離 */
+            bottom: 5%;
         }
 
-        /* 左側方向鍵區域 */
         .d-pad-container {
             left: 5%;
-            width: 22%; /* 佔畫面寬度的 22% */
-            aspect-ratio: 1/1; /* 保持正方形 */
+            width: 22%;
+            aspect-ratio: 1/1;
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             grid-template-rows: 1fr 1fr 1fr;
             gap: 2%;
         }
 
-        /* 右側技能鍵區域 */
         .skill-container {
             right: 5%;
-            width: 12%; /* 佔畫面寬度的 12% */
+            width: 12%;
             aspect-ratio: 1/1;
             display: flex;
             justify-content: center;
             align-items: center;
-            bottom: 8%; /* 稍微高一點，符合大拇指 */
+            bottom: 8%;
         }
 
         .touch-btn {
@@ -81,7 +77,7 @@
             border-radius: 15%;
             color: white;
             display: flex; justify-content: center; align-items: center;
-            font-size: 2vw; /* 字體隨寬度縮放 */
+            font-size: 2vw;
             backdrop-filter: blur(4px);
             transition: transform 0.1s;
             touch-action: manipulation; 
@@ -93,7 +89,6 @@
             transform: scale(0.9);
         }
 
-        /* 方向鍵佈局 */
         .btn-up { grid-column: 2; grid-row: 1; border-radius: 10px 10px 0 0; }
         .btn-left { grid-column: 1; grid-row: 2; border-radius: 10px 0 0 10px; }
         .btn-down { grid-column: 2; grid-row: 3; border-radius: 0 0 10px 10px; }
@@ -113,12 +108,11 @@
             transform: scale(0.9);
         }
 
-        /* HUD */
         #hud {
             padding: 2%;
             display: flex; justify-content: space-between; align-items: flex-start;
             color: #fff; text-shadow: 0.2vw 0.2vw 0 #000;
-            font-size: 2.5vw; /* 隨畫面縮放字體 */
+            font-size: 2.5vw;
         }
         
         #health-container {
@@ -162,7 +156,7 @@
             background: #27ae60; color: white; font-size: 3vw; padding: 1.5vw 5vw;
             border: none; border-radius: 1vw; cursor: pointer; margin-top: 2vw;
             box-shadow: 0 0.5vw 0 #219150; font-weight: 900;
-            touch-action: manipulation; /* 關鍵：優化點擊反應 */
+            touch-action: manipulation;
         }
         #start-btn:active { transform: translateY(0.5vw); box-shadow: none; }
 
@@ -183,22 +177,20 @@
         
         .win-text { color: #2ecc71; font-size: 6vw; text-shadow: 0.5vw 0.5vw 0 #27ae60; }
         .lose-text { color: #e74c3c; font-size: 6vw; text-shadow: 0.5vw 0.5vw 0 #c0392b; }
-        .warning-text { color: #f39c12; font-size: 2vw; margin-top: 0.5vw; display: none; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+        .warning-text { color: #e74c3c; font-size: 2vw; margin-top: 0.5vw; display: block; font-weight: bold; text-shadow: 1px 1px 0 #000; animation: blink 1s infinite;}
+        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
     </style>
 </head>
 <body>
 
-    <!-- 遊戲主容器 (16:9) -->
     <div id="game-container">
-        
-        <!-- HUD -->
         <div id="ui-layer">
             <div id="hud">
                 <div>
                     <div style="color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
                     <div id="time-display">⏰ 05:00</div>
                     <div id="status-effects"></div>
-                    <div id="enemy-warning" class="warning-text">⚠️ 敵人狂暴化！</div>
+                    <div id="enemy-warning" class="warning-text">⚠️ 敵人全面進攻中！</div>
                 </div>
                 <div style="text-align: right;">
                     <div id="status" style="font-size: 2vw;">尋找綠色光柱</div>
@@ -210,9 +202,7 @@
             </div>
         </div>
 
-        <!-- 手機觸控層 (百分比配置) -->
         <div id="mobile-controls">
-            <!-- 左下角方向鍵 -->
             <div class="control-zone d-pad-container">
                 <div class="touch-btn btn-center"></div>
                 <div class="touch-btn btn-up" id="btn-up">▲</div>
@@ -220,13 +210,11 @@
                 <div class="touch-btn btn-down" id="btn-down">▼</div>
                 <div class="touch-btn btn-right" id="btn-right">▶</div>
             </div>
-            <!-- 右下角技能鍵 -->
             <div class="control-zone skill-container">
                 <div class="touch-btn btn-skill" id="btn-skill">💥</div>
             </div>
         </div>
 
-        <!-- 開始畫面 -->
         <div id="blocker">
             <div id="instructions">
                 <h1 id="menu-title">校園生存逃脫</h1>
@@ -234,19 +222,17 @@
                 <hr style="border: 2px dashed #ddd; margin: 2vw 0;">
                 <p>左手移動 &nbsp; 右手魔法</p>
                 <p>⚡加速 &nbsp; ❄️緩速 &nbsp; ❤️補血</p>
+                <p style="color:#e74c3c; font-size: 1.8vw;">注意：光柱附近有強力守衛！</p>
                 <br>
-                <!-- 改用標準 button 確保點擊生效 -->
                 <button id="start-btn">點擊開始</button>
             </div>
         </div>
 
-        <!-- 結算畫面 -->
         <div id="result-screen">
             <div id="result-title" class="win-text"></div>
             <p id="result-message" style="font-size: 3vw; margin: 2vw; color: #ddd; font-weight: bold;"></p>
             <button id="action-btn" class="action-btn" onclick="handleAction()">下一關</button>
         </div>
-
     </div>
 
     <script type="importmap">
@@ -271,7 +257,6 @@
         let weaponMesh;
         let projectiles = [];
         
-        // 控制旗標
         let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
         
         let enemies = [];
@@ -308,7 +293,7 @@
                     this.isPlaying = true;
                     this.startBGM();
                 } catch (e) {
-                    console.log("Audio init warning:", e);
+                    console.log("Audio warning:", e);
                 }
             }
             stop() {
@@ -343,7 +328,6 @@
                     noise.start();
                 } catch(e) {}
             }
-            
             startBGM() {
                 if (!this.ctx) return;
                 if (this.bgmTimer) clearTimeout(this.bgmTimer);
@@ -362,9 +346,8 @@
                 };
                 playStep();
             }
-
             playShoot() { this.playTone(600, 'square', 0.1, 0.1); setTimeout(()=>this.playTone(300, 'square', 0.1, 0.1), 50); }
-            playEnemyShoot() { this.playTone(200, 'sawtooth', 0.1, 0.1); }
+            playEnemyShoot() { this.playTone(150, 'sawtooth', 0.15, 0.2); }
             playHit() { this.playNoise(0.1, 0.2); }
             playPowerUp() { this.playTone(1000, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(1500, 'sine', 0.3, 0.2), 100); }
             playDamage() { this.playTone(100, 'sawtooth', 0.3, 0.3); }
@@ -395,7 +378,6 @@
 
         function init() {
             const container = document.getElementById('game-container');
-            // 使用 getBoundingClientRect 獲取精確大小
             const rect = container.getBoundingClientRect();
             const width = rect.width;
             const height = rect.height;
@@ -427,33 +409,18 @@
             scene.add(sunLight);
             scene.add(worldGroup);
 
-            // --- 啟動按鈕邏輯 (修正版) ---
             const startBtn = document.getElementById('start-btn');
             startBtn.addEventListener('click', function(e) {
-                // 使用標準 click 事件，相容性最高
                 e.preventDefault(); 
                 document.getElementById('blocker').style.display = 'none';
                 soundManager.init();
                 startLevel(1);
             });
 
-            // --- 觸控事件綁定 ---
             const bindTouch = (id, startAction, endAction) => {
                 const btn = document.getElementById(id);
-                
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault(); 
-                    startAction();
-                    btn.classList.add('pressed');
-                }, { passive: false });
-                
-                btn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    endAction();
-                    btn.classList.remove('pressed');
-                }, { passive: false });
-
-                // 測試用 (滑鼠)
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); startAction(); btn.classList.add('pressed'); }, { passive: false });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); endAction(); btn.classList.remove('pressed'); }, { passive: false });
                 btn.addEventListener('mousedown', () => { startAction(); btn.classList.add('pressed'); });
                 btn.addEventListener('mouseup', () => { endAction(); btn.classList.remove('pressed'); });
                 btn.addEventListener('mouseleave', () => { endAction(); btn.classList.remove('pressed'); });
@@ -465,7 +432,6 @@
             bindTouch('btn-right', () => rotateRight = true, () => rotateRight = false);
             bindTouch('btn-skill', () => shoot(), () => {});
 
-            // --- 鍵盤事件 ---
             const onKeyDown = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
                 if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('btn-up').classList.add('pressed'); }
@@ -495,11 +461,11 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-        // --- 遊戲邏輯 ---
         function getLevelData(level) {
             let size = 15 + Math.floor((level - 1) / 2) * 2;
             if (size > 61) size = 61;
-            let enemies = Math.floor(3 + level * 0.8);
+            // 敵人數量增加：基礎 5 + 每關增加
+            let enemies = Math.floor(5 + level * 1.5);
             let time = 300 + (level * 10);
             return { id: level, size: size, time: time, enemies: enemies };
         }
@@ -521,22 +487,19 @@
             updateStatusEffects();
 
             document.getElementById('level-num').innerText = currentLevel;
+            // 警告顯示
             const warning = document.getElementById('enemy-warning');
-            if(currentLevel >= 3) {
-                warning.style.display = 'block';
-                warning.innerText = `⚠️ Level ${currentLevel}: 敵人攻擊與重生！`;
-            } else {
-                warning.style.display = 'none';
-            }
+            warning.style.display = 'block';
+            warning.innerText = `⚠️ Level ${currentLevel}: 敵人全面進攻！`;
 
             timeLeft = currentLevelData.time;
             updateTimeDisplay();
 
             createMazeWorld(currentLevelData.size);
             
-            for(let i=0; i<currentLevelData.enemies; i++) {
-                spawnSingleEnemy();
-            }
+            // 生成地圖敵人與守衛
+            spawnMapEntities();
+            
             spawnItems(5 + Math.floor(currentLevel/5)); 
 
             moveForward = false; moveBackward = false; rotateLeft = false; rotateRight = false;
@@ -579,7 +542,7 @@
             const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(quat).normalize();
             bullet.position.copy(pos).add(dir.clone().multiplyScalar(2));
             
-            bullet.userData = { velocity: dir.multiplyScalar(60), life: 2.0, isEnemy: false };
+            bullet.userData = { velocity: dir.multiplyScalar(60), life: 2.0, isEnemy: false, damage: 1 };
             worldGroup.add(bullet);
             projectiles.push(bullet);
         }
@@ -588,8 +551,12 @@
             if(!gameActive) return;
             soundManager.playEnemyShoot();
             
-            const sphereGeo = new THREE.SphereGeometry(0.8, 8, 8);
-            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            // 守衛子彈較大，一般敵人較小
+            const size = enemy.isGuard ? 1.0 : 0.6;
+            const color = enemy.isGuard ? 0x9b59b6 : 0xff0000; // 紫色 vs 紅色
+            
+            const sphereGeo = new THREE.SphereGeometry(size, 8, 8);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: color });
             const bullet = new THREE.Mesh(sphereGeo, sphereMat);
             
             const startPos = enemy.mesh.position.clone();
@@ -597,75 +564,117 @@
             targetPos.y -= 2;
             
             const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
-            bullet.position.copy(startPos).add(dir.clone().multiplyScalar(4));
+            bullet.position.copy(startPos).add(dir.clone().multiplyScalar(5));
             
-            bullet.userData = { velocity: dir.multiplyScalar(30), life: 3.0, isEnemy: true };
+            const speed = enemy.isGuard ? 40 : 25; // 守衛射速快
+            const dmg = enemy.damage;
+
+            bullet.userData = { velocity: dir.multiplyScalar(speed), life: 3.0, isEnemy: true, damage: dmg };
             worldGroup.add(bullet);
             projectiles.push(bullet);
         }
 
-        function spawnSingleEnemy() {
-            const geo = new THREE.BoxGeometry(7, 7, 7);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x000000 });
-            const eyeGeo = new THREE.BoxGeometry(1.0, 1.0, 0.5);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-
-            let x, z;
-            let attempts = 0;
-            do {
-                x = Math.floor(Math.random() * currentLevelData.size);
-                z = Math.floor(Math.random() * currentLevelData.size);
-                attempts++;
-            } while (maze[z][x] === 1 && attempts < 100);
-
-            if (maze[z][x] === 0) {
-                const group = new THREE.Group();
-                const body = new THREE.Mesh(geo, mat);
-                const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-1.8, 1.0, 3.6);
-                const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(1.8, 1.0, 3.6);
-                group.add(body, eyeL, eyeR);
-                
-                const px = (x - currentLevelData.size/2) * TILE_SIZE;
-                const pz = (z - currentLevelData.size/2) * TILE_SIZE;
-                group.position.set(px, 3.5, pz);
-                group.castShadow = true;
-
-                worldGroup.add(group);
-                enemies.push({ 
-                    mesh: group, 
-                    hp: 3, 
-                    speed: 15 + Math.random() * 10,
-                    lastShot: 0
-                });
+        function spawnMapEntities() {
+            // 1. 生成遊蕩敵人 (Roaming)
+            const roamingCount = currentLevelData.enemies;
+            for(let i=0; i<roamingCount; i++) {
+                spawnEnemy('roaming');
             }
+
+            // 2. 生成守衛 (Guards) - 在出口附近
+            // 數量隨關卡增加，至少 2 隻
+            const guardCount = 2 + Math.floor((currentLevel - 1) / 3);
+            spawnGuardsAroundExit(guardCount);
         }
 
-        function spawnItems(count) {
-            const geo = new THREE.BoxGeometry(2, 2, 2);
-            const colors = [0xffff00, 0x00ffff, 0xff0000];
-            const types = ['speed', 'slow', 'heal'];
+        function spawnEnemy(type, specificX, specificZ) {
+            const isGuard = type === 'guard';
+            // 守衛比較大隻
+            const size = isGuard ? 9 : 7;
+            const color = isGuard ? 0x5d4037 : 0x000000; // 褐色 vs 黑色
+            
+            const geo = new THREE.BoxGeometry(size, size, size);
+            const mat = new THREE.MeshStandardMaterial({ color: color });
+            const eyeGeo = new THREE.BoxGeometry(size/7, size/7, size/10);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: isGuard ? 0xffff00 : 0xff0000 }); // 黃眼 vs 紅眼
 
-            for(let i=0; i<count; i++) {
-                let x, z;
-                let attempts = 0;
+            // 決定位置
+            let px, pz;
+            if (specificX !== undefined && specificZ !== undefined) {
+                px = (specificX - currentLevelData.size/2) * TILE_SIZE;
+                pz = (specificZ - currentLevelData.size/2) * TILE_SIZE;
+            } else {
+                let x, z, attempts = 0;
                 do {
                     x = Math.floor(Math.random() * currentLevelData.size);
                     z = Math.floor(Math.random() * currentLevelData.size);
                     attempts++;
                 } while (maze[z][x] === 1 && attempts < 100);
+                if (maze[z][x] === 1) return; // 沒地方生就算了
+                px = (x - currentLevelData.size/2) * TILE_SIZE;
+                pz = (z - currentLevelData.size/2) * TILE_SIZE;
+            }
 
-                if (maze[z][x] === 0) {
-                    const typeIdx = Math.floor(Math.random() * 3);
-                    const mat = new THREE.MeshStandardMaterial({ 
-                        color: colors[typeIdx], emissive: colors[typeIdx], emissiveIntensity: 0.5 
-                    });
-                    const item = new THREE.Mesh(geo, mat);
-                    const px = (x - currentLevelData.size/2) * TILE_SIZE;
-                    const pz = (z - currentLevelData.size/2) * TILE_SIZE;
-                    item.position.set(px, 4, pz);
-                    worldGroup.add(item);
-                    items.push({ mesh: item, type: types[typeIdx] });
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(geo, mat);
+            const eyeL = new THREE.Mesh(eyeGeo, eyeMat); 
+            eyeL.position.set(-size*0.25, size*0.15, size*0.5+0.1);
+            const eyeR = new THREE.Mesh(eyeGeo, eyeMat); 
+            eyeR.position.set(size*0.25, size*0.15, size*0.5+0.1);
+            group.add(body, eyeL, eyeR);
+            
+            group.position.set(px, size/2, pz);
+            group.castShadow = true;
+
+            worldGroup.add(group);
+            
+            // 能力值隨關卡成長
+            const baseHp = isGuard ? 7 : 3;
+            const hpGrowth = isGuard ? 2 : 0.5;
+            const maxHp = Math.floor(baseHp + currentLevel * hpGrowth);
+            
+            const baseDmg = isGuard ? 15 : 8;
+            const dmgGrowth = isGuard ? 1.5 : 0.5;
+            const damage = Math.floor(baseDmg + currentLevel * dmgGrowth);
+
+            enemies.push({ 
+                mesh: group, 
+                hp: maxHp, 
+                maxHp: maxHp,
+                speed: isGuard ? 10 : (15 + Math.random() * 10), // 守衛走得慢但穩
+                lastShot: 0,
+                isGuard: isGuard,
+                damage: damage,
+                aggroRange: isGuard ? 50 : 100, // 守衛索敵範圍短，只守光柱
+                shootRange: isGuard ? 60 : 80
+            });
+        }
+
+        function spawnGuardsAroundExit(count) {
+            // 出口位置
+            const ex = currentLevelData.size - 2; 
+            const ey = currentLevelData.size - 2; // 注意 maze[y][x]
+            
+            // 搜尋出口附近的空地
+            let spots = [];
+            // 掃描以出口為中心 5x5 範圍
+            for(let y = ey-4; y <= ey+4; y++) {
+                for(let x = ex-4; x <= ex+4; x++) {
+                    if (x>0 && x<currentLevelData.size-1 && y>0 && y<currentLevelData.size-1) {
+                        if (maze[y][x] === 0) {
+                            // 排除出口本身 (如果想站在出口上也可以)
+                            spots.push({x, y});
+                        }
+                    }
                 }
+            }
+            
+            // 隨機選點生成守衛
+            for(let i=0; i<count; i++) {
+                if (spots.length === 0) break;
+                const idx = Math.floor(Math.random() * spots.length);
+                const spot = spots[idx];
+                spawnEnemy('guard', spot.x, spot.y);
             }
         }
 
@@ -681,25 +690,31 @@
 
                 if (!hit) {
                     if (b.userData.isEnemy) {
+                        // 敵人打玩家
                         const playerPos = camera.position;
                         if (b.position.distanceTo(playerPos) < 4) {
-                            takeDamage(15);
+                            takeDamage(b.userData.damage);
                             hit = true;
                         }
                     } else {
+                        // 玩家打敵人
                         for (let j = enemies.length - 1; j >= 0; j--) {
                             const enemy = enemies[j];
-                            if (b.position.distanceTo(enemy.mesh.position) < 6) {
+                            const hitRadius = enemy.isGuard ? 9 : 7; // 判定範圍隨體型
+                            if (b.position.distanceTo(enemy.mesh.position) < hitRadius) {
                                 soundManager.playHit();
                                 enemy.hp--;
-                                const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(5);
+                                
+                                // 擊退
+                                const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(enemy.isGuard ? 2 : 5); // 守衛擊退抗性高
                                 enemy.mesh.position.add(pushDir);
                                 
                                 if (enemy.hp <= 0) {
                                     worldGroup.remove(enemy.mesh);
                                     enemies.splice(j, 1);
-                                    if(currentLevel >= 3) {
-                                        setTimeout(() => { if(gameActive) spawnSingleEnemy(); }, 3000);
+                                    // 遊蕩敵人會重生，守衛不會 (因為守衛是關卡挑戰的一部分，清完就安全了)
+                                    if(!enemy.isGuard) {
+                                        setTimeout(() => { if(gameActive) spawnEnemy('roaming'); }, 3000);
                                     }
                                 } else {
                                     enemy.mesh.children[0].material.emissive.setHex(0xff0000);
@@ -722,10 +737,11 @@
         function updateEnemies(dt, now) {
             const playerPos = camera.position;
             enemies.forEach(e => {
-                e.mesh.lookAt(playerPos.x, e.mesh.position.y, playerPos.z);
                 const dist = e.mesh.position.distanceTo(playerPos);
                 
-                if (dist < 120) { 
+                // 索敵邏輯
+                if (dist < e.aggroRange) { 
+                    e.mesh.lookAt(playerPos.x, e.mesh.position.y, playerPos.z);
                     const dir = new THREE.Vector3().subVectors(playerPos, e.mesh.position).normalize();
                     dir.y = 0;
                     
@@ -734,17 +750,21 @@
                     
                     if (!checkCollision(nextPos)) e.mesh.position.copy(nextPos);
                     
-                    if (dist < 6) {
+                    // 身體撞擊
+                    if (dist < (e.isGuard ? 10 : 7)) {
                         takeDamage(10);
-                        e.mesh.position.sub(dir.multiplyScalar(8)); 
+                        e.mesh.position.sub(dir.multiplyScalar(10)); 
                     }
 
-                    if (currentLevel >= 3 && now - e.lastShot > 2000 && dist < 80) { 
+                    // 射擊 (所有敵人 Level 1 就會射擊)
+                    if (dist < e.shootRange && now - e.lastShot > (e.isGuard ? 1500 : 2500)) { 
                         enemyShoot(e);
                         e.lastShot = now;
                     }
                 }
-                e.mesh.scale.setScalar(1 + Math.sin(now * 0.01) * 0.1);
+                
+                // 呼吸動畫
+                e.mesh.scale.setScalar(1 + Math.sin(now * 0.005) * 0.05);
             });
         }
 
@@ -775,12 +795,11 @@
             scene.background = new THREE.Color(0x550000);
             setTimeout(() => scene.background = new THREE.Color(0x87CEEB), 100);
             playerStats.invincible = 1.0; 
-            if (playerStats.hp <= 0) gameOver(false, "你倒下了！");
+            if (playerStats.hp <= 0) gameOver(false, "你被擊敗了！");
         }
 
         function applyEffect(type) {
             soundManager.playPowerUp();
-            
             if (type === 'heal') {
                 playerStats.hp = Math.min(playerStats.hp + 30, playerStats.maxHp);
                 updateHPBar();
