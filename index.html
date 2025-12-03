@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (音效強化版)</title>
+    <title>3D 校園迷宮逃脫 (狂暴敵人版)</title>
     <style>
         body {
             margin: 0;
@@ -190,7 +190,7 @@
                     <div style="color: #f1c40f;">Level <span id="level-num">1</span> / 100</div>
                     <div id="time-display">⏰ 05:00</div>
                     <div id="status-effects"></div>
-                    <div id="enemy-warning" class="warning-text">⚠️ 敵人全面進攻中！</div>
+                    <div id="enemy-warning" class="warning-text">⚠️ 敵人全面狂暴！</div>
                 </div>
                 <div style="text-align: right;">
                     <div id="status" style="font-size: 2vw;">尋找綠色光柱</div>
@@ -222,7 +222,7 @@
                 <hr style="border: 2px dashed #ddd; margin: 2vw 0;">
                 <p>左手移動 &nbsp; 右手魔法</p>
                 <p>⚡加速 &nbsp; ❄️緩速 &nbsp; ❤️補血</p>
-                <p style="color:#e74c3c; font-size: 1.8vw;">注意：光柱附近有強力守衛！</p>
+                <p style="color:#e74c3c; font-size: 1.8vw;">注意：敵人從第 1 關就會猛烈攻擊！</p>
                 <br>
                 <button id="start-btn">點擊開始</button>
             </div>
@@ -590,12 +590,8 @@
 
             document.getElementById('level-num').innerText = currentLevel;
             const warning = document.getElementById('enemy-warning');
-            if(currentLevel >= 3) {
-                warning.style.display = 'block';
-                warning.innerText = `⚠️ Level ${currentLevel}: 敵人攻擊與重生！`;
-            } else {
-                warning.style.display = 'none';
-            }
+            warning.style.display = 'block';
+            warning.innerText = `⚠️ Level ${currentLevel}: 敵人全面狂暴！`;
 
             timeLeft = currentLevelData.time;
             updateTimeDisplay();
@@ -668,7 +664,7 @@
             const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
             bullet.position.copy(startPos).add(dir.clone().multiplyScalar(5));
             
-            const speed = enemy.isGuard ? 40 : 25;
+            const speed = enemy.isGuard ? 50 : 35; // 子彈速度提升
             const dmg = enemy.damage;
 
             bullet.userData = { velocity: dir.multiplyScalar(speed), life: 3.0, isEnemy: true, damage: dmg };
@@ -738,8 +734,8 @@
                 lastShot: 0,
                 isGuard: isGuard,
                 damage: damage,
-                aggroRange: isGuard ? 50 : 100,
-                shootRange: isGuard ? 60 : 80
+                aggroRange: isGuard ? 80 : 120, // 擴大感知範圍
+                shootRange: isGuard ? 70 : 90
             });
         }
 
@@ -862,7 +858,9 @@
                         e.mesh.position.sub(dir.multiplyScalar(10)); 
                     }
 
-                    if (dist < e.shootRange && now - e.lastShot > (e.isGuard ? 1500 : 2500)) { 
+                    // 攻擊頻率加快
+                    const cooldown = e.isGuard ? 800 : 1500; // 守衛 0.8秒, 一般 1.5秒
+                    if (dist < e.shootRange && now - e.lastShot > cooldown) { 
                         enemyShoot(e);
                         e.lastShot = now;
                     }
