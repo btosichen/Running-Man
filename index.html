@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (菁英守衛版)</title>
+    <title>3D 校園迷宮逃脫 (菁英守衛修復版)</title>
     <style>
         body {
             margin: 0;
@@ -675,6 +675,40 @@
                 const idx = Math.floor(Math.random() * spots.length);
                 const spot = spots[idx];
                 spawnEnemy('guard', spot.x, spot.y);
+            }
+        }
+
+        function spawnItems(count) {
+            const geo = new THREE.BoxGeometry(2, 2, 2);
+            // 0: Speed (Yellow), 1: Slow (Blue), 2: Heal (Red)
+            const colors = [0xffff00, 0x00ffff, 0xff0000];
+            const types = ['speed', 'slow', 'heal'];
+
+            for(let i=0; i<count; i++) {
+                let x, z;
+                let attempts = 0;
+                do {
+                    x = Math.floor(Math.random() * currentLevelData.size);
+                    z = Math.floor(Math.random() * currentLevelData.size);
+                    attempts++;
+                } while (maze[z][x] === 1 && attempts < 100);
+
+                if (maze[z][x] === 0) {
+                    const typeIdx = Math.floor(Math.random() * 3);
+                    const mat = new THREE.MeshStandardMaterial({ 
+                        color: colors[typeIdx], 
+                        emissive: colors[typeIdx], 
+                        emissiveIntensity: 0.5 
+                    });
+                    const item = new THREE.Mesh(geo, mat);
+                    
+                    const px = (x - currentLevelData.size/2) * TILE_SIZE;
+                    const pz = (z - currentLevelData.size/2) * TILE_SIZE;
+                    item.position.set(px, 4, pz);
+                    
+                    worldGroup.add(item);
+                    items.push({ mesh: item, type: types[typeIdx] });
+                }
             }
         }
 
