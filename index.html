@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (菁英守衛修復版)</title>
+    <title>3D 校園迷宮逃脫 (音效強化版)</title>
     <style>
         body {
             margin: 0;
@@ -275,14 +275,16 @@
         let currentLevel = 1;
         let currentLevelData = {};
 
-        // --- 音效管理器 ---
+        // --- 音效管理器 (強化版) ---
         class SoundManager {
             constructor() { 
                 this.ctx = null; 
                 this.bgmTimer = null;
-                this.bgmNoteIndex = 0;
+                this.bgmStep = 0;
                 this.isPlaying = false;
+                this.nextStepTime = 0; // for footsteps
             }
+            
             init() {
                 try {
                     if(!this.ctx) {
@@ -291,68 +293,169 @@
                     }
                     if(this.ctx.state === 'suspended') this.ctx.resume();
                     this.isPlaying = true;
+                    this.startAmbience();
                     this.startBGM();
                 } catch (e) {
                     console.log("Audio warning:", e);
                 }
             }
+
             stop() {
                 this.isPlaying = false;
                 if(this.bgmTimer) clearTimeout(this.bgmTimer);
             }
-            playTone(freq, type, duration, vol = 0.1) {
+
+            // 通用音調生成
+            playTone(freq, type, duration, vol = 0.1, slideTo = null) {
                 if (!this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                    osc.connect(gain); gain.connect(this.ctx.destination);
-                    osc.start(); osc.stop(this.ctx.currentTime + duration);
-                } catch(e) {}
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                if (slideTo) {
+                    osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
+                }
+                
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
             }
+
+            // 通用噪音生成 (打擊、爆炸)
             playNoise(duration, vol) {
                 if (!this.ctx) return;
-                try {
-                    const bufferSize = this.ctx.sampleRate * duration;
-                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                    const noise = this.ctx.createBufferSource();
-                    noise.buffer = buffer;
-                    const gain = this.ctx.createGain();
-                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                    noise.connect(gain); gain.connect(this.ctx.destination);
-                    noise.start();
-                } catch(e) {}
+                const bufferSize = this.ctx.sampleRate * duration;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 1000;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
             }
+
+            // 環境音 (風聲)
+            startAmbience() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 2;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                noise.loop = true;
+                
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 200; // 低頻風聲
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0.03; // 很小聲的背景
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }
+
+            // BGM 序列
             startBGM() {
                 if (!this.ctx) return;
                 if (this.bgmTimer) clearTimeout(this.bgmTimer);
-                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0];
-                const leadLine = [440, 523, 587, 659, 523, 587, 440, 392];
-                const tempo = 220;
+                
+                // 16-step pattern (生存跑酷風格)
+                // Bass Line (Sawtooth)
+                const bass = [110, 0, 0, 110,  110, 0, 146, 0,  110, 0, 0, 110,  98, 0, 130, 0]; 
+                // Drum Kick (Noise/Low Sine) - 1, 5, 9, 13
+                const kick = [1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0];
+                // Hi-hat - Off beats
+                const hat  = [0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 1];
+                // Lead (Square) - Arpeggio
+                const lead = [440, 0, 523, 0,  587, 0, 659, 0,  523, 0, 587, 0,  440, 0, 392, 0];
+
+                const stepTime = 125; // 16th notes at ~120 BPM
+
                 const playStep = () => {
                     if (!this.isPlaying) return;
-                    const idx = this.bgmNoteIndex % 8;
-                    if (bassLine[idx] > 0) this.playTone(bassLine[idx], 'sawtooth', 0.1, 0.1);
-                    if (Math.random() > 0.2) this.playTone(leadLine[idx], 'square', 0.1, 0.03);
-                    if (idx % 4 === 0) this.playNoise(0.05, 0.05);
-                    if (idx % 2 === 0) this.playNoise(0.01, 0.02);
-                    this.bgmNoteIndex++;
-                    this.bgmTimer = setTimeout(playStep, tempo);
+                    const i = this.bgmStep % 16;
+
+                    // Kick
+                    if (kick[i]) this.playTone(100, 'sine', 0.1, 0.3, 0.01); // Punchy kick
+                    // Hat
+                    if (hat[i]) this.playNoise(0.05, 0.05);
+                    // Bass
+                    if (bass[i]) this.playTone(bass[i], 'sawtooth', 0.1, 0.1);
+                    // Lead (偶爾出現)
+                    if (lead[i] && Math.random() > 0.3) {
+                        this.playTone(lead[i], 'square', 0.1, 0.05);
+                    }
+
+                    this.bgmStep++;
+                    this.bgmTimer = setTimeout(playStep, stepTime);
                 };
                 playStep();
             }
-            playShoot() { this.playTone(600, 'square', 0.1, 0.1); setTimeout(()=>this.playTone(300, 'square', 0.1, 0.1), 50); }
-            playEnemyShoot() { this.playTone(150, 'sawtooth', 0.15, 0.2); }
-            playHit() { this.playNoise(0.1, 0.2); }
-            playPowerUp() { this.playTone(1000, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(1500, 'sine', 0.3, 0.2), 100); }
-            playDamage() { this.playTone(100, 'sawtooth', 0.3, 0.3); }
-            playWin() { this.stop(); [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); }
-            playLose() { this.stop(); this.playTone(200,'sawtooth',0.5,0.3); setTimeout(()=>this.playTone(100,'sawtooth',1.0,0.3),400); }
+
+            // 具體音效
+            playShoot() { 
+                // 魔法射擊：高頻滑落
+                this.playTone(880, 'sine', 0.15, 0.1, 110); 
+                this.playTone(1200, 'triangle', 0.1, 0.05, 200); 
+            }
+            playEnemyShoot() { 
+                // 敵人射擊：低沉滑落
+                this.playTone(300, 'sawtooth', 0.3, 0.1, 50); 
+            }
+            playHit() { 
+                // 打中敵人：短促噪音+衝擊
+                this.playNoise(0.1, 0.2); 
+                this.playTone(150, 'square', 0.1, 0.1, 50);
+            }
+            playDamage() { 
+                // 受傷：低頻震撼
+                this.playTone(100, 'sawtooth', 0.4, 0.3, 20); 
+                this.playNoise(0.2, 0.2);
+            }
+            playPowerUp() { 
+                // 吃道具：上行琶音
+                this.playTone(523, 'sine', 0.1, 0.2);
+                setTimeout(()=>this.playTone(659, 'sine', 0.1, 0.2), 50);
+                setTimeout(()=>this.playTone(784, 'sine', 0.2, 0.2), 100);
+            }
+            playFootstep() {
+                // 腳步聲：短噪音
+                if (!this.ctx || this.ctx.currentTime < this.nextStepTime) return;
+                this.playNoise(0.05, 0.05);
+                this.playTone(100, 'triangle', 0.03, 0.05);
+                this.nextStepTime = this.ctx.currentTime + 0.4;
+            }
+            playWin() { 
+                this.stop();
+                [523, 659, 784, 1046, 523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); 
+            }
+            playLose() { 
+                this.stop();
+                this.playTone(200,'sawtooth',0.5,0.3, 50); 
+                setTimeout(()=>this.playTone(150,'sawtooth',1.0,0.3, 20), 400); 
+            }
         }
         const soundManager = new SoundManager();
 
@@ -464,7 +567,6 @@
         function getLevelData(level) {
             let size = 15 + Math.floor((level - 1) / 2) * 2;
             if (size > 61) size = 61;
-            // 敵人數量增加：基礎 5 + 每關增加
             let enemies = Math.floor(5 + level * 1.5);
             let time = 300 + (level * 10);
             return { id: level, size: size, time: time, enemies: enemies };
@@ -487,19 +589,20 @@
             updateStatusEffects();
 
             document.getElementById('level-num').innerText = currentLevel;
-            // 警告顯示
             const warning = document.getElementById('enemy-warning');
-            warning.style.display = 'block';
-            warning.innerText = `⚠️ Level ${currentLevel}: 敵人全面進攻！`;
+            if(currentLevel >= 3) {
+                warning.style.display = 'block';
+                warning.innerText = `⚠️ Level ${currentLevel}: 敵人攻擊與重生！`;
+            } else {
+                warning.style.display = 'none';
+            }
 
             timeLeft = currentLevelData.time;
             updateTimeDisplay();
 
             createMazeWorld(currentLevelData.size);
             
-            // 生成地圖敵人與守衛
             spawnMapEntities();
-            
             spawnItems(5 + Math.floor(currentLevel/5)); 
 
             moveForward = false; moveBackward = false; rotateLeft = false; rotateRight = false;
@@ -551,9 +654,8 @@
             if(!gameActive) return;
             soundManager.playEnemyShoot();
             
-            // 守衛子彈較大，一般敵人較小
             const size = enemy.isGuard ? 1.0 : 0.6;
-            const color = enemy.isGuard ? 0x9b59b6 : 0xff0000; // 紫色 vs 紅色
+            const color = enemy.isGuard ? 0x9b59b6 : 0xff0000;
             
             const sphereGeo = new THREE.SphereGeometry(size, 8, 8);
             const sphereMat = new THREE.MeshBasicMaterial({ color: color });
@@ -566,7 +668,7 @@
             const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
             bullet.position.copy(startPos).add(dir.clone().multiplyScalar(5));
             
-            const speed = enemy.isGuard ? 40 : 25; // 守衛射速快
+            const speed = enemy.isGuard ? 40 : 25;
             const dmg = enemy.damage;
 
             bullet.userData = { velocity: dir.multiplyScalar(speed), life: 3.0, isEnemy: true, damage: dmg };
@@ -575,30 +677,22 @@
         }
 
         function spawnMapEntities() {
-            // 1. 生成遊蕩敵人 (Roaming)
             const roamingCount = currentLevelData.enemies;
-            for(let i=0; i<roamingCount; i++) {
-                spawnEnemy('roaming');
-            }
-
-            // 2. 生成守衛 (Guards) - 在出口附近
-            // 數量隨關卡增加，至少 2 隻
+            for(let i=0; i<roamingCount; i++) spawnEnemy('roaming');
             const guardCount = 2 + Math.floor((currentLevel - 1) / 3);
             spawnGuardsAroundExit(guardCount);
         }
 
         function spawnEnemy(type, specificX, specificZ) {
             const isGuard = type === 'guard';
-            // 守衛比較大隻
             const size = isGuard ? 9 : 7;
-            const color = isGuard ? 0x5d4037 : 0x000000; // 褐色 vs 黑色
+            const color = isGuard ? 0x5d4037 : 0x000000;
             
             const geo = new THREE.BoxGeometry(size, size, size);
             const mat = new THREE.MeshStandardMaterial({ color: color });
             const eyeGeo = new THREE.BoxGeometry(size/7, size/7, size/10);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: isGuard ? 0xffff00 : 0xff0000 }); // 黃眼 vs 紅眼
+            const eyeMat = new THREE.MeshBasicMaterial({ color: isGuard ? 0xffff00 : 0xff0000 });
 
-            // 決定位置
             let px, pz;
             if (specificX !== undefined && specificZ !== undefined) {
                 px = (specificX - currentLevelData.size/2) * TILE_SIZE;
@@ -610,7 +704,7 @@
                     z = Math.floor(Math.random() * currentLevelData.size);
                     attempts++;
                 } while (maze[z][x] === 1 && attempts < 100);
-                if (maze[z][x] === 1) return; // 沒地方生就算了
+                if (maze[z][x] === 1) return;
                 px = (x - currentLevelData.size/2) * TILE_SIZE;
                 pz = (z - currentLevelData.size/2) * TILE_SIZE;
             }
@@ -628,7 +722,6 @@
 
             worldGroup.add(group);
             
-            // 能力值隨關卡成長
             const baseHp = isGuard ? 7 : 3;
             const hpGrowth = isGuard ? 2 : 0.5;
             const maxHp = Math.floor(baseHp + currentLevel * hpGrowth);
@@ -641,35 +734,26 @@
                 mesh: group, 
                 hp: maxHp, 
                 maxHp: maxHp,
-                speed: isGuard ? 10 : (15 + Math.random() * 10), // 守衛走得慢但穩
+                speed: isGuard ? 10 : (15 + Math.random() * 10),
                 lastShot: 0,
                 isGuard: isGuard,
                 damage: damage,
-                aggroRange: isGuard ? 50 : 100, // 守衛索敵範圍短，只守光柱
+                aggroRange: isGuard ? 50 : 100,
                 shootRange: isGuard ? 60 : 80
             });
         }
 
         function spawnGuardsAroundExit(count) {
-            // 出口位置
             const ex = currentLevelData.size - 2; 
-            const ey = currentLevelData.size - 2; // 注意 maze[y][x]
-            
-            // 搜尋出口附近的空地
+            const ey = currentLevelData.size - 2;
             let spots = [];
-            // 掃描以出口為中心 5x5 範圍
             for(let y = ey-4; y <= ey+4; y++) {
                 for(let x = ex-4; x <= ex+4; x++) {
                     if (x>0 && x<currentLevelData.size-1 && y>0 && y<currentLevelData.size-1) {
-                        if (maze[y][x] === 0) {
-                            // 排除出口本身 (如果想站在出口上也可以)
-                            spots.push({x, y});
-                        }
+                        if (maze[y][x] === 0) spots.push({x, y});
                     }
                 }
             }
-            
-            // 隨機選點生成守衛
             for(let i=0; i<count; i++) {
                 if (spots.length === 0) break;
                 const idx = Math.floor(Math.random() * spots.length);
@@ -680,7 +764,6 @@
 
         function spawnItems(count) {
             const geo = new THREE.BoxGeometry(2, 2, 2);
-            // 0: Speed (Yellow), 1: Slow (Blue), 2: Heal (Red)
             const colors = [0xffff00, 0x00ffff, 0xff0000];
             const types = ['speed', 'slow', 'heal'];
 
@@ -696,16 +779,12 @@
                 if (maze[z][x] === 0) {
                     const typeIdx = Math.floor(Math.random() * 3);
                     const mat = new THREE.MeshStandardMaterial({ 
-                        color: colors[typeIdx], 
-                        emissive: colors[typeIdx], 
-                        emissiveIntensity: 0.5 
+                        color: colors[typeIdx], emissive: colors[typeIdx], emissiveIntensity: 0.5 
                     });
                     const item = new THREE.Mesh(geo, mat);
-                    
                     const px = (x - currentLevelData.size/2) * TILE_SIZE;
                     const pz = (z - currentLevelData.size/2) * TILE_SIZE;
                     item.position.set(px, 4, pz);
-                    
                     worldGroup.add(item);
                     items.push({ mesh: item, type: types[typeIdx] });
                 }
@@ -724,29 +803,24 @@
 
                 if (!hit) {
                     if (b.userData.isEnemy) {
-                        // 敵人打玩家
                         const playerPos = camera.position;
                         if (b.position.distanceTo(playerPos) < 4) {
                             takeDamage(b.userData.damage);
                             hit = true;
                         }
                     } else {
-                        // 玩家打敵人
                         for (let j = enemies.length - 1; j >= 0; j--) {
                             const enemy = enemies[j];
-                            const hitRadius = enemy.isGuard ? 9 : 7; // 判定範圍隨體型
+                            const hitRadius = enemy.isGuard ? 9 : 7;
                             if (b.position.distanceTo(enemy.mesh.position) < hitRadius) {
                                 soundManager.playHit();
                                 enemy.hp--;
-                                
-                                // 擊退
-                                const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(enemy.isGuard ? 2 : 5); // 守衛擊退抗性高
+                                const pushDir = b.userData.velocity.clone().normalize().multiplyScalar(enemy.isGuard ? 2 : 5);
                                 enemy.mesh.position.add(pushDir);
                                 
                                 if (enemy.hp <= 0) {
                                     worldGroup.remove(enemy.mesh);
                                     enemies.splice(j, 1);
-                                    // 遊蕩敵人會重生，守衛不會 (因為守衛是關卡挑戰的一部分，清完就安全了)
                                     if(!enemy.isGuard) {
                                         setTimeout(() => { if(gameActive) spawnEnemy('roaming'); }, 3000);
                                     }
@@ -773,7 +847,6 @@
             enemies.forEach(e => {
                 const dist = e.mesh.position.distanceTo(playerPos);
                 
-                // 索敵邏輯
                 if (dist < e.aggroRange) { 
                     e.mesh.lookAt(playerPos.x, e.mesh.position.y, playerPos.z);
                     const dir = new THREE.Vector3().subVectors(playerPos, e.mesh.position).normalize();
@@ -784,20 +857,16 @@
                     
                     if (!checkCollision(nextPos)) e.mesh.position.copy(nextPos);
                     
-                    // 身體撞擊
                     if (dist < (e.isGuard ? 10 : 7)) {
                         takeDamage(10);
                         e.mesh.position.sub(dir.multiplyScalar(10)); 
                     }
 
-                    // 射擊 (所有敵人 Level 1 就會射擊)
                     if (dist < e.shootRange && now - e.lastShot > (e.isGuard ? 1500 : 2500)) { 
                         enemyShoot(e);
                         e.lastShot = now;
                     }
                 }
-                
-                // 呼吸動畫
                 e.mesh.scale.setScalar(1 + Math.sin(now * 0.005) * 0.05);
             });
         }
@@ -1028,7 +1097,10 @@
                     const nextZ = currentPos.z + forward.z * moveSpeed;
 
                     if (!checkCollision(new THREE.Vector3(nextX, currentPos.y, currentPos.z))) camera.position.x = nextX;
-                    if (!checkCollision(new THREE.Vector3(camera.position.x, currentPos.y, nextZ))) camera.position.z = nextZ;
+                    if (!checkCollision(new THREE.Vector3(camera.position.x, currentPos.y, nextZ))) {
+                        camera.position.z = nextZ;
+                    }
+                    soundManager.playFootstep();
                 }
                 checkWinCondition();
             }
