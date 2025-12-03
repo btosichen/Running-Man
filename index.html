@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 校園迷宮逃脫 (狂暴敵人版)</title>
+    <title>3D 校園迷宮逃脫 (炸彈與視角鎖定版)</title>
     <style>
         body {
             margin: 0;
@@ -51,6 +51,7 @@
             bottom: 5%;
         }
 
+        /* 左側方向鍵區域 */
         .d-pad-container {
             left: 5%;
             width: 22%;
@@ -59,6 +60,16 @@
             grid-template-columns: 1fr 1fr 1fr;
             grid-template-rows: 1fr 1fr 1fr;
             gap: 2%;
+        }
+
+        /* 視角鎖定按鈕位置 */
+        .camera-lock-container {
+            position: absolute;
+            left: 5%;
+            bottom: 30%; /* 在方向鍵上方 */
+            width: 8%;
+            aspect-ratio: 1/1;
+            pointer-events: auto;
         }
 
         .skill-container {
@@ -106,6 +117,19 @@
         .btn-skill:active, .btn-skill.pressed {
             background: rgba(255, 50, 50, 0.9);
             transform: scale(0.9);
+        }
+
+        /* 視角按鈕樣式 */
+        .btn-lock {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            background: rgba(50, 50, 200, 0.4);
+            border: 2px solid rgba(100, 100, 255, 0.6);
+            font-size: 3vw;
+        }
+        .btn-lock.locked {
+            background: rgba(200, 50, 50, 0.6);
+            border-color: rgba(255, 100, 100, 0.8);
         }
 
         #hud {
@@ -203,6 +227,9 @@
         </div>
 
         <div id="mobile-controls">
+            <div class="camera-lock-container">
+                <button class="touch-btn btn-lock" id="btn-camera-lock">🔓</button>
+            </div>
             <div class="control-zone d-pad-container">
                 <div class="touch-btn btn-center"></div>
                 <div class="touch-btn btn-up" id="btn-up">▲</div>
@@ -222,7 +249,7 @@
                 <hr style="border: 2px dashed #ddd; margin: 2vw 0;">
                 <p>左手移動 &nbsp; 右手魔法</p>
                 <p>⚡加速 &nbsp; ❄️緩速 &nbsp; ❤️補血</p>
-                <p style="color:#e74c3c; font-size: 1.8vw;">注意：敵人從第 1 關就會猛烈攻擊！</p>
+                <p style="color:#e74c3c; font-size: 1.8vw;">注意：敵人會投擲定時炸彈！</p>
                 <br>
                 <button id="start-btn">點擊開始</button>
             </div>
@@ -256,8 +283,10 @@
         const ROTATE_SPEED = 2.5;
         let weaponMesh;
         let projectiles = [];
+        let grenades = []; // 新增炸彈陣列
         
         let moveForward = false, moveBackward = false, rotateLeft = false, rotateRight = false;
+        let cameraLocked = false; // 視角鎖定狀態
         
         let enemies = [];
         let items = [];
@@ -282,7 +311,7 @@
                 this.bgmTimer = null;
                 this.bgmStep = 0;
                 this.isPlaying = false;
-                this.nextStepTime = 0; // for footsteps
+                this.nextStepTime = 0;
             }
             
             init() {
@@ -305,151 +334,98 @@
                 if(this.bgmTimer) clearTimeout(this.bgmTimer);
             }
 
-            // 通用音調生成
             playTone(freq, type, duration, vol = 0.1, slideTo = null) {
                 if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                if (slideTo) {
-                    osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
-                }
-                
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + duration);
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
             }
 
-            // 通用噪音生成 (打擊、爆炸)
             playNoise(duration, vol) {
                 if (!this.ctx) return;
-                const bufferSize = this.ctx.sampleRate * duration;
-                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-                const data = buffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {
-                    data[i] = Math.random() * 2 - 1;
-                }
-                const noise = this.ctx.createBufferSource();
-                noise.buffer = buffer;
-                
-                const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 1000;
-
-                const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.ctx.destination);
-                noise.start();
+                try {
+                    const bufferSize = this.ctx.sampleRate * duration;
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const gain = this.ctx.createGain();
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    noise.connect(gain); gain.connect(this.ctx.destination);
+                    noise.start();
+                } catch(e) {}
             }
 
-            // 環境音 (風聲)
             startAmbience() {
                 if (!this.ctx) return;
                 const bufferSize = this.ctx.sampleRate * 2;
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = buffer;
                 noise.loop = true;
-                
                 const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 200; // 低頻風聲
-
+                filter.type = 'lowpass'; filter.frequency.value = 200; 
                 const gain = this.ctx.createGain();
-                gain.gain.value = 0.03; // 很小聲的背景
-
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.ctx.destination);
+                gain.gain.value = 0.03; 
+                noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
                 noise.start();
             }
 
-            // BGM 序列
             startBGM() {
                 if (!this.ctx) return;
                 if (this.bgmTimer) clearTimeout(this.bgmTimer);
-                
-                // 16-step pattern (生存跑酷風格)
-                // Bass Line (Sawtooth)
-                const bass = [110, 0, 0, 110,  110, 0, 146, 0,  110, 0, 0, 110,  98, 0, 130, 0]; 
-                // Drum Kick (Noise/Low Sine) - 1, 5, 9, 13
+                const bassLine = [110, 0, 110, 0, 146, 0, 130, 0, 110, 0, 0, 110, 98, 0, 130, 0]; 
                 const kick = [1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0];
-                // Hi-hat - Off beats
                 const hat  = [0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 1];
-                // Lead (Square) - Arpeggio
                 const lead = [440, 0, 523, 0,  587, 0, 659, 0,  523, 0, 587, 0,  440, 0, 392, 0];
-
-                const stepTime = 125; // 16th notes at ~120 BPM
+                const stepTime = 125; 
 
                 const playStep = () => {
                     if (!this.isPlaying) return;
                     const i = this.bgmStep % 16;
-
-                    // Kick
-                    if (kick[i]) this.playTone(100, 'sine', 0.1, 0.3, 0.01); // Punchy kick
-                    // Hat
+                    if (kick[i]) this.playTone(100, 'sine', 0.1, 0.3, 0.01);
                     if (hat[i]) this.playNoise(0.05, 0.05);
-                    // Bass
-                    if (bass[i]) this.playTone(bass[i], 'sawtooth', 0.1, 0.1);
-                    // Lead (偶爾出現)
-                    if (lead[i] && Math.random() > 0.3) {
-                        this.playTone(lead[i], 'square', 0.1, 0.05);
-                    }
-
+                    if (bassLine[i]) this.playTone(bassLine[i], 'sawtooth', 0.1, 0.1);
+                    if (lead[i] && Math.random() > 0.3) this.playTone(lead[i], 'square', 0.1, 0.05);
                     this.bgmStep++;
                     this.bgmTimer = setTimeout(playStep, stepTime);
                 };
                 playStep();
             }
 
-            // 具體音效
-            playShoot() { 
-                // 魔法射擊：高頻滑落
-                this.playTone(880, 'sine', 0.15, 0.1, 110); 
-                this.playTone(1200, 'triangle', 0.1, 0.05, 200); 
-            }
-            playEnemyShoot() { 
-                // 敵人射擊：低沉滑落
-                this.playTone(300, 'sawtooth', 0.3, 0.1, 50); 
-            }
-            playHit() { 
-                // 打中敵人：短促噪音+衝擊
-                this.playNoise(0.1, 0.2); 
-                this.playTone(150, 'square', 0.1, 0.1, 50);
-            }
-            playDamage() { 
-                // 受傷：低頻震撼
-                this.playTone(100, 'sawtooth', 0.4, 0.3, 20); 
-                this.playNoise(0.2, 0.2);
-            }
+            playShoot() { this.playTone(880, 'sine', 0.15, 0.1, 110); }
+            playEnemyShoot() { this.playTone(300, 'sawtooth', 0.3, 0.1, 50); }
+            playHit() { this.playNoise(0.1, 0.2); this.playTone(150, 'square', 0.1, 0.1, 50); }
+            playDamage() { this.playTone(100, 'sawtooth', 0.4, 0.3, 20); this.playNoise(0.2, 0.2); }
             playPowerUp() { 
-                // 吃道具：上行琶音
                 this.playTone(523, 'sine', 0.1, 0.2);
                 setTimeout(()=>this.playTone(659, 'sine', 0.1, 0.2), 50);
                 setTimeout(()=>this.playTone(784, 'sine', 0.2, 0.2), 100);
             }
             playFootstep() {
-                // 腳步聲：短噪音
                 if (!this.ctx || this.ctx.currentTime < this.nextStepTime) return;
                 this.playNoise(0.05, 0.05);
-                this.playTone(100, 'triangle', 0.03, 0.05);
                 this.nextStepTime = this.ctx.currentTime + 0.4;
+            }
+            playExplosion() {
+                // 炸彈爆炸音效
+                this.playNoise(0.5, 0.5); // 爆炸聲
+                this.playTone(80, 'sawtooth', 0.5, 0.5, 20); // 低頻轟鳴
             }
             playWin() { 
                 this.stop();
-                [523, 659, 784, 1046, 523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); 
+                [523, 659, 784, 1046].forEach((f,i)=>setTimeout(()=>this.playTone(f,'square',0.2,0.2),i*100)); 
             }
             playLose() { 
                 this.stop();
@@ -520,6 +496,33 @@
                 startLevel(1);
             });
 
+            // 視角鎖定按鈕
+            const lockBtn = document.getElementById('btn-camera-lock');
+            lockBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                cameraLocked = !cameraLocked;
+                if(cameraLocked) {
+                    lockBtn.innerText = '🔒';
+                    lockBtn.classList.add('locked');
+                } else {
+                    lockBtn.innerText = '🔓';
+                    lockBtn.classList.remove('locked');
+                }
+            });
+            // 支援觸控
+            lockBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                cameraLocked = !cameraLocked;
+                if(cameraLocked) {
+                    lockBtn.innerText = '🔒';
+                    lockBtn.classList.add('locked');
+                } else {
+                    lockBtn.innerText = '🔓';
+                    lockBtn.classList.remove('locked');
+                }
+            }, { passive: false });
+
+            // 觸控綁定
             const bindTouch = (id, startAction, endAction) => {
                 const btn = document.getElementById(id);
                 btn.addEventListener('touchstart', (e) => { e.preventDefault(); startAction(); btn.classList.add('pressed'); }, { passive: false });
@@ -535,6 +538,7 @@
             bindTouch('btn-right', () => rotateRight = true, () => rotateRight = false);
             bindTouch('btn-skill', () => shoot(), () => {});
 
+            // 鍵盤
             const onKeyDown = (e) => {
                 const k = e.key.toLowerCase(), c = e.code;
                 if(c==='ArrowUp'||c==='KeyW'||k==='w') { moveForward=true; document.getElementById('btn-up').classList.add('pressed'); }
@@ -580,6 +584,7 @@
             enemies = [];
             items = [];
             projectiles = [];
+            grenades = []; // 清空炸彈
             
             playerStats.hp = playerStats.maxHp;
             playerStats.speedMulti = 1.0;
@@ -597,7 +602,6 @@
             updateTimeDisplay();
 
             createMazeWorld(currentLevelData.size);
-            
             spawnMapEntities();
             spawnItems(5 + Math.floor(currentLevel/5)); 
 
@@ -664,12 +668,100 @@
             const dir = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
             bullet.position.copy(startPos).add(dir.clone().multiplyScalar(5));
             
-            const speed = enemy.isGuard ? 50 : 35; // 子彈速度提升
+            const speed = enemy.isGuard ? 50 : 35; 
             const dmg = enemy.damage;
 
             bullet.userData = { velocity: dir.multiplyScalar(speed), life: 3.0, isEnemy: true, damage: dmg };
             worldGroup.add(bullet);
             projectiles.push(bullet);
+        }
+
+        // --- 炸彈功能 ---
+        function enemyThrowGrenade(enemy) {
+            if(!gameActive) return;
+            
+            // 拋物線炸彈
+            const grenadeGeo = new THREE.SphereGeometry(1.5, 8, 8);
+            const grenadeMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
+            const grenade = new THREE.Mesh(grenadeGeo, grenadeMat);
+            
+            const startPos = enemy.mesh.position.clone();
+            startPos.y += 5; // 從頭頂丟出
+            grenade.position.copy(startPos);
+            
+            const targetPos = camera.position.clone();
+            // 計算方向
+            const dir = new THREE.Vector3().subVectors(targetPos, startPos);
+            const dist = dir.length();
+            dir.normalize();
+            
+            // 簡單物理模擬：水平速度 + 垂直速度
+            const speed = dist * 1.5; // 距離越遠丟越快
+            const velocity = dir.multiplyScalar(speed);
+            velocity.y = 30; // 往上拋
+            
+            grenade.userData = { 
+                velocity: velocity, 
+                life: 3.0, // 3秒後爆炸
+                onGround: false 
+            };
+            
+            worldGroup.add(grenade);
+            grenades.push(grenade);
+        }
+
+        function updateGrenades(dt) {
+            for (let i = grenades.length - 1; i >= 0; i--) {
+                const g = grenades[i];
+                
+                // 計時
+                g.userData.life -= dt;
+                
+                if (!g.userData.onGround) {
+                    // 重力物理
+                    g.userData.velocity.y -= 80 * dt; // 重力
+                    g.position.add(g.userData.velocity.clone().multiplyScalar(dt));
+                    
+                    // 落地檢測
+                    if (g.position.y <= 1.5) {
+                        g.position.y = 1.5;
+                        g.userData.onGround = true;
+                        // 落地後稍微滾動一點就停
+                        g.userData.velocity.set(0,0,0);
+                    }
+                } else {
+                    // 落地後閃爍
+                    const blink = Math.sin(Date.now() * 0.02) > 0;
+                    g.material.emissive.setHex(blink ? 0xff0000 : 0x000000);
+                }
+
+                // 爆炸
+                if (g.userData.life <= 0) {
+                    explodeGrenade(g);
+                    worldGroup.remove(g);
+                    grenades.splice(i, 1);
+                }
+            }
+        }
+
+        function explodeGrenade(g) {
+            soundManager.playExplosion();
+            
+            // 視覺效果 (紅色爆炸球)
+            const boomGeo = new THREE.SphereGeometry(15, 16, 16);
+            const boomMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8 });
+            const boom = new THREE.Mesh(boomGeo, boomMat);
+            boom.position.copy(g.position);
+            worldGroup.add(boom);
+            
+            // 傷害判定
+            const dist = g.position.distanceTo(camera.position);
+            if (dist < 15) {
+                takeDamage(30); // 炸彈很痛
+            }
+            
+            // 移除爆炸效果
+            setTimeout(() => { worldGroup.remove(boom); }, 300);
         }
 
         function spawnMapEntities() {
@@ -721,10 +813,7 @@
             const baseHp = isGuard ? 7 : 3;
             const hpGrowth = isGuard ? 2 : 0.5;
             const maxHp = Math.floor(baseHp + currentLevel * hpGrowth);
-            
-            const baseDmg = isGuard ? 15 : 8;
-            const dmgGrowth = isGuard ? 1.5 : 0.5;
-            const damage = Math.floor(baseDmg + currentLevel * dmgGrowth);
+            const damage = Math.floor((isGuard ? 15 : 8) + currentLevel * 1.0);
 
             enemies.push({ 
                 mesh: group, 
@@ -732,9 +821,10 @@
                 maxHp: maxHp,
                 speed: isGuard ? 10 : (15 + Math.random() * 10),
                 lastShot: 0,
+                lastGrenade: 0, // 新增炸彈冷卻
                 isGuard: isGuard,
                 damage: damage,
-                aggroRange: isGuard ? 80 : 120, // 擴大感知範圍
+                aggroRange: isGuard ? 80 : 120, 
                 shootRange: isGuard ? 70 : 90
             });
         }
@@ -858,11 +948,20 @@
                         e.mesh.position.sub(dir.multiplyScalar(10)); 
                     }
 
-                    // 攻擊頻率加快
-                    const cooldown = e.isGuard ? 800 : 1500; // 守衛 0.8秒, 一般 1.5秒
-                    if (dist < e.shootRange && now - e.lastShot > cooldown) { 
+                    // 射擊判定
+                    const shootCooldown = e.isGuard ? 800 : 1500;
+                    if (dist < e.shootRange && now - e.lastShot > shootCooldown) { 
                         enemyShoot(e);
                         e.lastShot = now;
+                    }
+
+                    // 丟炸彈判定 (隨機)
+                    const grenadeCooldown = 5000; // 5秒
+                    if (dist < 100 && dist > 30 && now - e.lastGrenade > grenadeCooldown) {
+                        if (Math.random() > 0.7) { // 30% 機率
+                            enemyThrowGrenade(e);
+                            e.lastGrenade = now;
+                        }
                     }
                 }
                 e.mesh.scale.setScalar(1 + Math.sin(now * 0.005) * 0.05);
@@ -1076,28 +1175,53 @@
 
                 updateProjectiles(delta);
                 updateEnemies(delta, time);
+                updateGrenades(delta); // 新增炸彈更新
                 updateItems(delta);
 
-                if (rotateLeft) camera.rotation.y += ROTATE_SPEED * delta;
-                if (rotateRight) camera.rotation.y -= ROTATE_SPEED * delta;
+                // --- 視角與移動邏輯更新 ---
+                // 1. 旋轉/平移處理
+                if (cameraLocked) {
+                    // 鎖定模式：左右鍵是平移 (Strafe)
+                    // 在移動計算中處理
+                } else {
+                    // 解鎖模式：左右鍵是旋轉 (Rotate)
+                    if (rotateLeft) camera.rotation.y += ROTATE_SPEED * delta;
+                    if (rotateRight) camera.rotation.y -= ROTATE_SPEED * delta;
+                }
 
+                // 2. 移動計算
                 let moveSpeed = 0;
+                let strafeSpeed = 0;
                 const finalSpeed = PLAYER_BASE_SPEED * playerStats.speedMulti;
                 
                 if (moveForward) moveSpeed = finalSpeed * delta;
                 if (moveBackward) moveSpeed = -finalSpeed * delta;
 
-                if (moveSpeed !== 0) {
+                if (cameraLocked) {
+                    if (rotateLeft) strafeSpeed = -finalSpeed * delta;
+                    if (rotateRight) strafeSpeed = finalSpeed * delta;
+                }
+
+                if (moveSpeed !== 0 || strafeSpeed !== 0) {
+                    // 計算前進方向
                     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
                     forward.y = 0; forward.normalize();
+                    
+                    // 計算右方方向 (用於 Strafe)
+                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                    right.y = 0; right.normalize();
+
                     const currentPos = camera.position.clone();
-                    const nextX = currentPos.x + forward.x * moveSpeed;
-                    const nextZ = currentPos.z + forward.z * moveSpeed;
+                    
+                    // 組合移動向量
+                    const moveVec = forward.multiplyScalar(moveSpeed).add(right.multiplyScalar(strafeSpeed));
+                    
+                    const nextX = currentPos.x + moveVec.x;
+                    const nextZ = currentPos.z + moveVec.z;
 
                     if (!checkCollision(new THREE.Vector3(nextX, currentPos.y, currentPos.z))) camera.position.x = nextX;
-                    if (!checkCollision(new THREE.Vector3(camera.position.x, currentPos.y, nextZ))) {
-                        camera.position.z = nextZ;
-                    }
+                    if (!checkCollision(new THREE.Vector3(camera.position.x, currentPos.y, nextZ))) camera.position.z = nextZ;
+                    
                     soundManager.playFootstep();
                 }
                 checkWinCondition();
